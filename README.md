@@ -1,4 +1,4 @@
-# 🚀 After-Sales Tool (Lucid Marketing Intelligence)
+# 🚀 After-Sales Tool ( Marketing Intelligence)
 
 A powerful AI-driven conversational intelligence platform for after-sales management and customer engagement. Built with advanced NLP, multi-platform data aggregation, and intelligent query processing.
 
