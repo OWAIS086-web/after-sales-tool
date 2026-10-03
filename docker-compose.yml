@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    container_name: haval-marketing-tool
+    restart: always
+    env_file: .env
+    ports:
+      - "10000:10000"
+    depends_on:
+      - redis
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - haval_net
+    extra_hosts:
+      # host-gateway is a special value that resolves to host machine's IP
+      - "mssql-server:host-gateway"
+    environment:
+      # Use the mssql-server alias which points to host machine
+      - DMS_MSSQL_SERVER=mssql-server
+      # Must use SQL Auth (not Windows Auth) from Linux container
+      - DMS_MSSQL_TRUSTED_CONNECTION=false
+      # Redis connection (use Docker service name)
+      - REDIS_HOST=redis
+
+  redis:
+    image: redis:latest
+    container_name: haval-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - haval_net
+
+networks:
+  haval_net:
+
+volumes:
+  redis_data:

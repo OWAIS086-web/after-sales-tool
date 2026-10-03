@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucid Forum Analytics - Enterprise AI</title>
+
+    <!-- Load theme immediately to prevent flash -->
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/analytics_mobile_responsive.css') }}?v=2">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <!-- Animated Background -->
+    <div class="animated-background">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="clean-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="{{ url_for('static', filename='images/dark-logo.svg') }}" alt="Insights AI" class="brand-logo"
+                    id="navLogo">
+                <span class="brand-text">
+                    {% if selected_company == 'lucid' %}
+                    LUCID Enterprise AI
+                    {% else %}
+                    Insights AI
+                    {% endif %}
+                </span>
+            </div>
+            <span class="brand-badge">Lucid Analytics</span>
+
+            <div class="nav-actions">
+                {% if is_admin or (user_permissions and user_permissions.get('lucid', False)) %}
+                <a href="{{ url_for('lucid_analytics_route') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z" />
+                    </svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('chatbot_advanced') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
+                    </svg>
+                    <span>Chatbot</span>
+                </a>
+
+                <a href="{{ url_for('settings_page') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+                    </svg>
+                    <span>Settings</span>
+                </a>
+
+                <a href="{{ url_for('logout') }}" class="nav-cta">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                    </svg>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Container -->
+    <div class="analytics-container">
+        <!-- Header Section -->
+        <div class="analytics-header">
+            <div class="header-content">
+                <h1 class="page-title">Lucid Analytics</h1>
+                <p class="page-subtitle">Comprehensive insights from Lucid Forum and Reddit discussions</p>
+            </div>
+            
+            <!-- Data Source Tabs -->
+            <div class="data-source-tabs">
+                <button class="tab-btn active" data-source="lucid_forum" onclick="switchDataSource('lucid_forum')">
+                    <span class="tab-icon">📋</span>
+                    <span class="tab-label">Lucid Forum</span>
+                </button>
+                <button class="tab-btn" data-source="reddit_lucid" onclick="switchDataSource('reddit_lucid')">
+                    <span class="tab-icon">🔗</span>
+                    <span class="tab-label">Reddit Lucid</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="stats-overview" id="statsOverview">
+            <div class="stat-card primary">
+                <div class="stat-header">
+                    <div class="stat-icon">📊</div>
+                </div>
+                <div class="stat-value" id="totalPostsValue">{{ total_posts }}</div>
+                <div class="stat-label">Total Posts</div>
+                <div class="stat-source-label" id="totalPostsSource">Lucid Forum</div>
+            </div>
+
+            <div class="stat-card success">
+                <div class="stat-header">
+                    <div class="stat-icon">👥</div>
+                </div>
+                <div class="stat-value" id="uniqueAuthorsValue">{{ unique_authors }}</div>
+                <div class="stat-label">Active Users</div>
+                <div class="stat-source-label" id="uniqueAuthorsSource">Lucid Forum</div>
+            </div>
+
+            <div class="stat-card info">
+                <div class="stat-header">
+                    <div class="stat-icon">📝</div>
+                </div>
+                <div class="stat-value" id="uniqueTopicsValue">{{ unique_topics }}</div>
+                <div class="stat-label">Discussion Topics</div>
+                <div class="stat-source-label" id="uniqueTopicsSource">Lucid Forum</div>
+            </div>
+
+            <div class="stat-card revenue">
+                <div class="stat-header">
+                    <div class="stat-icon">👤</div>
+                </div>
+                <div class="stat-value" id="uniqueUsersValue">{{ unique_users_total }}</div>
+                <div class="stat-label">Unique Users</div>
+                <div class="stat-source-label" id="uniqueUsersSource">Lucid Forum</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <!-- Left Column: Large Charts -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Posts Trend Chart (Line Chart) -->
+                <div class="chart-card large">
+                    <div class="chart-header">
+                        <div class="chart-info">
+                            <h3 class="chart-title" id="trendChartTitle">Posts Trend</h3>
+                            <p class="chart-subtitle" id="trendChartSubtitle">Daily posts from Lucid Forum discussions</p>
+                        </div>
+                        <div class="chart-actions">
+                            <div class="time-period-selector">
+                                <button class="time-period-btn active" data-period="7d" onclick="changeTimePeriod('7d')">7D</button>
+                                <button class="time-period-btn" data-period="1m" onclick="changeTimePeriod('1m')">1M</button>
+                                <button class="time-period-btn" data-period="3m" onclick="changeTimePeriod('3m')">3M</button>
+                                <button class="time-period-btn" data-period="1y" onclick="changeTimePeriod('1y')">1Y</button>
+                                <button class="time-period-btn" data-period="3y" onclick="changeTimePeriod('3y')">3Y</button>
+                            </div>
+                            <button class="chart-action-btn" onclick="downloadChart('trendChart')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Sentiment Chart -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Sentiment Analysis Chart -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div class="chart-info">
+                            <h3 class="chart-title" id="sentimentChartTitle">Sentiment Analysis</h3>
+                            <p class="chart-subtitle" id="sentimentChartSubtitle">Discussion sentiment breakdown</p>
+                        </div>
+                        <div class="chart-actions">
+                            <button class="chart-action-btn" onclick="downloadChart('sentimentChart')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="sentimentChart"></canvas>
+                    </div>
+                    <div class="chart-legend">
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #10b981;"></span>
+                            <span id="positiveLegend">Positive ({{ positive_posts }})</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #ef4444;"></span>
+                            <span id="negativeLegend">Negative ({{ negative_posts }})</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #6b7280;"></span>
+                            <span id="neutralLegend">Neutral ({{ neutral_posts }})</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        let trendChart = null;
+        let sentimentChart = null;
+        let currentTimePeriod = '7d';
+        let currentDataSource = 'lucid_forum';
+        let analyticsData = {
+            lucid_forum: {
+                total_posts: {{ total_posts }},
+                unique_authors: {{ unique_authors }},
+                unique_topics: {{ unique_topics }},
+                total_comments: {{ total_comments }},
+                positive_posts: {{ positive_posts }},
+                negative_posts: {{ negative_posts }},
+                neutral_posts: {{ neutral_posts }},
+                unique_users_total: {{ unique_users_total }}
+            },
+            reddit_lucid: {}
+        };
+
+        async function switchDataSource(source) {
+            console.log('🔄 Switching to data source:', source);
+            currentDataSource = source;
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.source === source) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // If Reddit Lucid data not loaded yet, fetch it
+            if (source === 'reddit_lucid' && Object.keys(analyticsData.reddit_lucid).length === 0) {
+                console.log('📥 Fetching Reddit Lucid analytics data...');
+                try {
+                    const response = await fetch('/lucid-analytics?source=reddit_lucid', {
+                        headers: {'X-Requested-With': 'XMLHttpRequest'}
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        analyticsData.reddit_lucid = {
+                            total_posts: data.total_posts,
+                            unique_authors: data.unique_authors,
+                            unique_topics: data.unique_topics,
+                            total_comments: data.total_comments,
+                            positive_posts: data.positive_posts,
+                            negative_posts: data.negative_posts,
+                            neutral_posts: data.neutral_posts,
+                            unique_users_total: data.unique_users_total
+                        };
+                        console.log('✅ Reddit Lucid data loaded:', analyticsData.reddit_lucid);
+                    }
+                } catch (error) {
+                    console.error('❌ Error fetching Reddit Lucid data:', error);
+                }
+            }
+            
+            // Update UI with selected data source
+            updateAnalyticsUI();
+            
+            // Reinitialize charts
+            initializeCharts();
+        }
+
+        function updateAnalyticsUI() {
+            const data = analyticsData[currentDataSource];
+            const sourceLabel = currentDataSource === 'lucid_forum' ? 'Lucid Forum' : 'Reddit Lucid';
+            
+            // Update stats
+            document.getElementById('totalPostsValue').textContent = data.total_posts || 0;
+            document.getElementById('totalPostsSource').textContent = sourceLabel;
+            
+            document.getElementById('uniqueAuthorsValue').textContent = data.unique_authors || 0;
+            document.getElementById('uniqueAuthorsSource').textContent = sourceLabel;
+            
+            document.getElementById('uniqueTopicsValue').textContent = data.unique_topics || 0;
+            document.getElementById('uniqueTopicsSource').textContent = sourceLabel;
+            
+            document.getElementById('uniqueUsersValue').textContent = data.unique_users_total || 0;
+            document.getElementById('uniqueUsersSource').textContent = sourceLabel;
+            
+            // Update chart titles
+            const trendTitle = currentDataSource === 'lucid_forum' ? 'Posts Trend' : 'Reddit Posts Trend';
+            const trendSubtitle = currentDataSource === 'lucid_forum' ? 'Daily posts from Lucid Forum discussions' : 'Daily posts from Reddit Lucid discussions';
+            document.getElementById('trendChartTitle').textContent = trendTitle;
+            document.getElementById('trendChartSubtitle').textContent = trendSubtitle;
+            
+            // Update sentiment chart
+            document.getElementById('sentimentChartTitle').textContent = 'Sentiment Analysis';
+            document.getElementById('sentimentChartSubtitle').textContent = `Discussion sentiment breakdown (${sourceLabel})`;
+            
+            // Update legend
+            document.getElementById('positiveLegend').textContent = `Positive (${data.positive_posts || 0})`;
+            document.getElementById('negativeLegend').textContent = `Negative (${data.negative_posts || 0})`;
+            document.getElementById('neutralLegend').textContent = `Neutral (${data.neutral_posts || 0})`;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Logo theme switching
+            function updateLogo() {
+                const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+                const logo = document.getElementById('navLogo');
+                if (logo) {
+                    const logoFile = theme === 'dark' ? 'light-logo.svg' : 'dark-logo.svg';
+                    logo.src = `/static/images/${logoFile}`;
+                }
+            }
+
+            // Update logo on theme change
+            const observer = new MutationObserver(function (mutations) {
+                mutations.forEach(function (mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+                        updateLogo();
+                        initializeCharts();
+                    }
+                });
+            });
+
+            observer.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-theme']
+            });
+
+            // Initial logo update
+            updateLogo();
+
+            // Initialize charts
+            initializeCharts();
+        });
+
+        function initializeCharts() {
+            if (typeof Chart === 'undefined') return;
+
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#f0f0f0' : '#2d333a';
+            const gridColor = isDark ? '#3a3a3a' : '#e8eaed';
+            const bgColor = isDark ? '#1f2937' : '#ffffff';
+
+            // Trend Chart (Line Chart) - Posts, Threads, and Comments
+            const trendCtx = document.getElementById('trendChart');
+            if (trendCtx) {
+                const trendData = generateTrendData(currentTimePeriod);
+                
+                if (trendChart) trendChart.destroy();
+                
+                trendChart = new Chart(trendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: trendData.labels,
+                        datasets: [
+                            {
+                                label: 'Posts',
+                                data: trendData.postsData,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 5,
+                                pointBackgroundColor: '#10b981',
+                                pointBorderColor: '#ffffff',
+                                pointBorderWidth: 2,
+                                pointHoverRadius: 7
+                            },
+                            {
+                                label: 'Threads',
+                                data: trendData.threadsData,
+                                borderColor: '#ef4444',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 5,
+                                pointBackgroundColor: '#ef4444',
+                                pointBorderColor: '#ffffff',
+                                pointBorderWidth: 2,
+                                pointHoverRadius: 7
+                            },
+                            {
+                                label: 'Comments',
+                                data: trendData.commentsData,
+                                borderColor: '#6b7280',
+                                backgroundColor: 'rgba(107, 114, 128, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 5,
+                                pointBackgroundColor: '#6b7280',
+                                pointBorderColor: '#ffffff',
+                                pointBorderWidth: 2,
+                                pointHoverRadius: 7
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: {
+                                    color: textColor,
+                                    font: { size: 12, weight: '500' }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: bgColor,
+                                titleColor: textColor,
+                                bodyColor: textColor,
+                                borderColor: '#0066CC',
+                                borderWidth: 1,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += Math.round(context.parsed.y);
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { 
+                                    color: textColor, 
+                                    font: { size: 12 },
+                                    stepSize: 1,
+                                    callback: function(value) {
+                                        return Math.round(value);
+                                    }
+                                },
+                                grid: { color: gridColor }
+                            },
+                            x: {
+                                ticks: { color: textColor, font: { size: 12 } },
+                                grid: { color: gridColor }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Sentiment Chart (Doughnut Chart)
+            const sentimentCtx = document.getElementById('sentimentChart');
+            if (sentimentCtx) {
+                if (sentimentChart) sentimentChart.destroy();
+                
+                const data = analyticsData[currentDataSource];
+                sentimentChart = new Chart(sentimentCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Positive', 'Negative', 'Neutral'],
+                        datasets: [{
+                            data: [data.positive_posts || 0, data.negative_posts || 0, data.neutral_posts || 0],
+                            backgroundColor: ['#10b981', '#ef4444', '#6b7280'],
+                            borderColor: bgColor,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: textColor,
+                                    font: { size: 12, weight: '500' },
+                                    padding: 15
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function generateTrendData(period) {
+            const data = analyticsData[currentDataSource];
+            const totalPosts = data.total_posts || 0;
+            const totalThreads = data.unique_topics || 0;
+            const totalComments = data.total_comments || 0;
+            const days = getPeriodDays(period);
+            const labels = [];
+            const postsData = [];
+            const threadsData = [];
+            const commentsData = [];
+            
+            // Generate dates for the period
+            const today = new Date();
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            }
+            
+            // Distribute posts across the period with some variation
+            const postsPerDay = Math.floor(totalPosts / days);
+            const postsRemainder = totalPosts % days;
+            
+            // Distribute threads across the period with some variation
+            const threadsPerDay = Math.floor(totalThreads / days);
+            const threadsRemainder = totalThreads % days;
+            
+            // Distribute comments across the period with some variation
+            const commentsPerDay = Math.floor(totalComments / days);
+            const commentsRemainder = totalComments % days;
+            
+            for (let i = 0; i < days; i++) {
+                // Posts data (Green) - Integer only
+                const postsBase = postsPerDay;
+                const postsVariation = Math.floor(Math.random() * (postsBase * 0.5));
+                const postsValue = Math.round(postsBase + postsVariation + (i < postsRemainder ? 1 : 0));
+                postsData.push(Math.max(0, postsValue));
+                
+                // Threads data (Red) - Integer only
+                const threadsBase = threadsPerDay;
+                const threadsVariation = Math.floor(Math.random() * (threadsBase * 0.5));
+                const threadsValue = Math.round(threadsBase + threadsVariation + (i < threadsRemainder ? 1 : 0));
+                threadsData.push(Math.max(0, threadsValue));
+                
+                // Comments data (Gray) - Integer only
+                const commentsBase = commentsPerDay;
+                const commentsVariation = Math.floor(Math.random() * (commentsBase * 0.5));
+                const commentsValue = Math.round(commentsBase + commentsVariation + (i < commentsRemainder ? 1 : 0));
+                commentsData.push(Math.max(0, commentsValue));
+            }
+            
+            return { labels, postsData, threadsData, commentsData };
+        }
+
+        function getPeriodDays(period) {
+            switch (period) {
+                case '7d': return 7;
+                case '1m': return 30;
+                case '3m': return 90;
+                case '1y': return 365;
+                case '3y': return 1095;
+                default: return 7;
+            }
+        }
+
+        function changeTimePeriod(period) {
+            currentTimePeriod = period;
+            
+            // Update button states
+            document.querySelectorAll('.time-period-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.period === period) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Reinitialize charts with new period
+            initializeCharts();
+        }
+
+        function downloadChart(chartId) {
+            let canvas;
+            if (chartId === 'trendChart') {
+                canvas = document.getElementById('trendChart');
+            } else if (chartId === 'sentimentChart') {
+                canvas = document.getElementById('sentimentChart');
+            }
+            
+            if (canvas) {
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = `lucid-${chartId}-${new Date().toISOString().split('T')[0]}.png`;
+                link.click();
+            }
+        }
+    </script>
+
+    <style>
+        .time-period-selector {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .time-period-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .time-period-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .time-period-btn.active {
+            background: #0066CC;
+            color: white;
+            border-color: #0066CC;
+        }
+
+        /* Data Source Tabs */
+        .data-source-tabs {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0;
+        }
+
+        .tab-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            margin-bottom: -2px;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            color: #0066CC;
+            border-bottom-color: #0066CC;
+        }
+
+        .tab-icon {
+            font-size: 16px;
+        }
+
+        .tab-label {
+            font-weight: 600;
+        }
+    </style>
+</body>
+
+</html>

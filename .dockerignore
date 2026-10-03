@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Environment files (secrets)
+.env
+*.env
+
+# Data directories (will be mounted as volumes)
+data/
+logs/
+uploads/
+backups/
+
+# Development files
+tests/
+*.md
+docs/
+imp_docs/
+
+# OS files
+.DS_Store
+Thumbs.db

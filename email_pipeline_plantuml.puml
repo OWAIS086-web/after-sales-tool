@@ -1,0 +1,168 @@
+@startuml Email Pipeline End-to-End Flow
+
+title Email Intelligence Pipeline - Complete Flow
+
+actor User as U
+participant "Web Browser" as WB
+participant "Flask App" as FA
+participant "Chat Controller" as CC
+participant "Email Management Controller" as EMC
+participant "Email Indexer" as EI
+participant "Gmail OAuth Service" as GOS
+participant "Gmail API" as GAPI
+participant "Email Fetcher" as EF
+participant "Gmail Langchain Service" as GLS
+participant "Email Vector Store" as EVS
+participant "Chroma DB" as CDB
+participant "Email RAG Handler" as ERH
+participant "LLM (Grok/OpenAI/Gemini)" as LLM
+participant "Sentence Transformer" as ST
+
+== Email Setup & Authentication ==
+U -> WB: Access Email Intelligence
+WB -> FA: GET /email/config-status
+FA -> EMC: get_config_status()
+EMC -> GOS: Check OAuth configuration
+GOS --> EMC: OAuth status
+EMC --> FA: Configuration status
+FA --> WB: Show setup requirements
+
+U -> WB: Connect Gmail Account
+WB -> FA: GET /email/oauth
+FA -> GOS: Initiate OAuth flow
+GOS -> GAPI: OAuth authorization
+GAPI --> GOS: Authorization code
+GOS --> FA: OAuth success
+FA --> WB: Gmail connected
+
+== Email Indexing Pipeline ==
+U -> WB: Index Emails
+WB -> FA: POST /email/index
+FA -> EMC: index_emails()
+EMC -> EI: index_user_emails()
+
+EI -> GOS: get_gmail_service(user_id)
+GOS -> GAPI: Get Gmail service
+GAPI --> GOS: Gmail service
+GOS --> EI: Gmail service
+
+EI -> GLS: GmailLangchainService(gmail_service)
+GLS -> GAPI: fetch_emails(max_results, query, after_date)
+GAPI --> GLS: Raw email data (JSON)
+GLS --> EI: List of email dictionaries
+
+EI -> GLS: emails_to_documents(emails)
+GLS --> EI: List of Langchain Documents
+note right: Converts Gmail API format to Langchain Document objects\nwith metadata (sender, subject, date, email_id, etc.)
+
+EI -> EVS: add_documents(documents, skip_duplicates=True)
+EVS -> EVS: _load_indexed_ids() - Check duplicates
+EVS -> ST: embed(texts) - Generate embeddings
+ST --> EVS: Vector embeddings
+EVS -> CDB: collection.add(documents, embeddings, metadatas, ids)
+CDB --> EVS: Indexed successfully
+EVS --> EI: Indexing results
+
+EI --> EMC: Indexing complete
+EMC --> FA: Success response
+FA --> WB: Indexing complete
+
+== Email Query Pipeline ==
+U -> WB: Ask email question
+WB -> FA: POST /chat (mode=email)
+FA -> CC: process_chat_stream()
+
+CC -> ERH: EmailRAGHandler.query()
+ERH -> ERH: _extract_date_from_query() - Optional date filtering
+ERH -> EVS: search(query, n_results, filter_metadata)
+EVS -> CDB: similarity_search(query, n_results)
+CDB --> EVS: Search results (documents + metadata + distances)
+EVS --> ERH: Search results
+
+ERH -> ERH: _build_context(search_results) - Format for LLM
+ERH -> ERH: _build_sources(search_results) - Format for UI
+ERH -> ERH: _filter_sources_by_date() - If date specified
+
+ERH -> ERH: _generate_answer(query, context, sources)
+ERH -> LLM: Generate answer with context
+LLM --> ERH: AI-generated answer
+
+ERH -> ERH: _filter_referenced_sources(answer, sources)
+note right: Regex extracts email IDs from AI response\nOnly shows emails actually discussed
+
+ERH --> CC: Final answer + filtered sources
+CC -> CC: Stream answer to user
+CC --> FA: Streaming response
+FA --> WB: Real-time answer chunks
+
+== Email Management Operations ==
+U -> WB: View email stats
+WB -> FA: GET /email/count
+FA -> EMC: get_email_count()
+EMC -> EI: get_unindexed_count()
+EI -> GOS: get_gmail_service()
+EI -> GLS: get_total_email_count()
+EI -> EVS: get_stats()
+EVS --> EI: Vector store stats
+EI --> EMC: Email counts
+EMC --> FA: Stats response
+
+U -> WB: Search emails directly
+WB -> FA: POST /email/search
+FA -> EMC: search_emails()
+EMC -> EVS: search(query, n_results)
+EVS -> CDB: Vector search
+CDB --> EVS: Results
+EVS --> EMC: Search results
+EMC --> FA: Formatted results
+
+== Chunking & Processing Details ==
+
+note over ST
+**Chunking Strategy:**
+- No explicit chunking in email pipeline
+- Each email is treated as one document
+- Full email content preserved
+- Metadata includes: sender, subject, date, email_id, thread_id
+- Embeddings generated on full email text
+end note
+
+note over GLS
+**Document Conversion:**
+- Gmail API → Langchain Document
+- page_content: Full email body text
+- metadata: sender, subject, date, labels, email_id, etc.
+- No text splitting - emails kept whole
+end note
+
+note over ERH
+**RAG Context Building:**
+- Multiple emails combined into single context
+- Each email formatted with headers:
+  "═══════════════════════════════════════════════
+   📧 EMAIL #X [REF: email_id]
+   ═══════════════════════════════════════════════
+   📌 Subject: {subject}
+   👤 From: {sender}
+   📅 Date: {date}
+   📝 Email Content: {body[:1500]}"
+end note
+
+note over ERH
+**Source Filtering:**
+- Regex pattern: r'(?:REF|Reference):\s*\[?([a-f0-9]+)\]?'
+- Matches: "Reference: [19c3eaf476a92a41]" or "Reference: 19c3eaf476a92a41"
+- Only emails mentioned in AI response are shown
+- Prevents showing irrelevant retrieved emails
+end note
+
+== Error Handling & Fallbacks ==
+note over ERH
+**Fallback Mechanisms:**
+- If no emails found: Return "no relevant emails" message
+- If LLM fails: Return fallback answer from retrieved blocks
+- If reference filtering fails: Show all sources as fallback
+- If OAuth expires: Prompt user to re-authenticate
+end note
+
+@enduml

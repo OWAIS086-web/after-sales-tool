@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat - Enterprise AI</title>
+    
+    <!-- Load theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='../favicon.ico') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot_mobile.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" onerror="console.error('Failed to load marked.js')"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" onerror="console.error('Failed to load highlight.js')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" onerror="console.error('Failed to load chart.js')"></script>
+    <script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("pre").forEach(pre => {
+        if (pre.querySelector("code.language-chart")) {
+            pre.style.display = "none";
+        }
+    });
+});
+</script>
+
+</head>
+<body data-user-id="{{ user.id }}">
+
+    <!-- Debug element for permissions (hidden) -->
+    <div id="debug-perms" style="display: none;" data-perms='{{ user_permissions | tojson }}'></div>
+    <div id="debug-company" style="display: none;" data-company="{{ selected_company }}"></div>
+
+    <!-- Standardized Navigation Header -->
+    <nav class="clean-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="{{ url_for('static', filename='images/dark-logo.svg') }}" alt="Insights AI" class="brand-logo" id="navLogo">
+                          <span class="brand-text">
+                    {% if selected_company == 'haval' %}
+                    HAVAL Enterprise AI
+                    {% elif selected_company == 'kia' %}
+                    KIA Insights
+                     {% elif selected_company == 'lucid' %}
+                    LUCID Enterprise AI
+                    {% else %}
+                    Insights AI
+                    {% endif %}
+                </span>
+            </div>
+             <span class="brand-badge">
+              
+                Chatbot
+            </span>
+            
+            <!-- Hamburger Menu for Mobile -->
+            <button class="hamburger-menu" id="hamburgerMenu" title="Toggle Sidebar">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+            
+            <div class="nav-actions">
+                <!-- Navigation Links -->
+                   <span class="brand-badge">
+                Grok
+            </span>
+                {% if (is_admin or user_permissions.get('pakwheels', True)) and selected_company != 'lucid' %}
+                <a href="{{ url_for('analysis') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z"/>
+                    </svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                {% if selected_company == 'lucid' and (is_admin or user_permissions.get('lucid', False)) %}
+                <a href="{{ url_for('lucid_analytics_route') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z"/>
+                    </svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('chatbot_advanced') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                    </svg>
+                    <span>Chatbot</span>
+                </a>
+
+                {% if (is_admin or user_permissions.get('whatsapp', False)) and selected_company != 'lucid' %}
+               <a href="{{ url_for('view_whatsapp_chat') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.465 3.516" />
+                    </svg>
+                    <span>WhatsApp</span>
+                </a>
+                {% endif %}
+                
+               
+                
+                <a href="{{ url_for('settings_page') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                    </svg>
+                    <span>Settings</span>
+                </a>
+                
+                <a href="{{ url_for('logout') }}" class="nav-cta">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                    </svg>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Chat Sidebar - Always Visible ChatGPT/Gemini Style -->
+    <div class="chat-sidebar-fixed" id="chatSidebar">
+        <div class="sidebar-header">
+           
+            <button class="sidebar-btn primary" id="newChatSidebarBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                <span>New chat</span>
+            </button>
+            
+            <button class="sidebar-btn primary" id="quickQuestionsBtn" style="margin-top: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
+                </svg>
+                <span>Quick Questions</span>
+            </button>
+            
+            <button class="sidebar-btn secondary" id="autoQuestionBtn" style="margin-top: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <span id="autoQuestionBtnText">Auto Questions</span>
+            </button>
+            
+            <button class="sidebar-btn secondary" id="chatHistoryBtn" style="margin-top: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>
+                </svg>
+                <span>Chat History</span>
+            </button>
+            
+            <button class="sidebar-btn secondary" id="dataSourceBtn" style="margin-top: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.22.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+                </svg>
+                <span>Data Source</span>
+            </button>
+            
+            <button class="sidebar-btn secondary" id="createGroupSidebarBtn" style="margin-top: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+                </svg>
+                <span>Create Group</span>
+            </button>
+            
+            <button class="sidebar-btn secondary" id="myGroupsSidebarBtn" style="margin-top: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                </svg>
+                <span>My Groups</span>
+            </button>
+
+            <!-- Divider -->
+            <div class="sidebar-divider"></div>
+        </div>
+        
+        <div class="sidebar-content">
+            <!-- Quick Questions Panel -->
+            <div class="quick-questions-panel" id="quickQuestionsPanel" style="display: none;">
+                <div class="panel-header">
+                    <h3>Quick Questions</h3>
+                    <button class="close-panel-btn" onclick="closeQuickQuestions()">✕</button>
+                </div>
+                <div class="panel-content">
+                    <!-- Auto Questions Section -->
+                    <div class="questions-category" id="autoQuestionsSection" style="display: none;">
+                        <h4>🤖 Auto Questions</h4>
+                        <div id="autoQuestionsList" class="default-questions-list">
+                            <!-- Auto questions will be loaded dynamically -->
+                        </div>
+                    </div>
+                    
+                    <!-- Dynamic Questions Section -->
+                    <div class="questions-category" id="dynamicQuestions">
+                        <h4 id="questionsHeading">📋 Quick Questions</h4>
+                        <div id="defaultQuestionsList" class="default-questions-list">
+                            <!-- Default questions will be loaded dynamically -->
+                        </div>
+                    </div>
+                    
+                    <div class="custom-question-section">
+                        <h4>➕ Add Custom Question</h4>
+                        <div class="custom-question-input">
+                            <input type="text" id="customQuestionInput" placeholder="Type your custom question..." />
+                            <button class="add-custom-btn" onclick="addCustomQuestion()">Add</button>
+                        </div>
+                        <div class="custom-questions-list" id="customQuestionsList"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat History Panel -->
+            <div class="quick-questions-panel" id="chatHistoryPanel" style="display: none;">
+                <div class="panel-header">
+                    <h3 style="display: flex; align-items: center; gap: 8px;">
+                        <span id="historyModeIcon">📱</span>
+                        <span id="historyModeTitle">WhatsApp History</span>
+                    </h3>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="close-panel-btn" onclick="closeChatHistory()">✕</button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="questions-category">
+                        <div id="chatHistoryList" class="default-questions-list">
+                            <!-- Mode-specific chat history will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+                <div style="padding: 12px; border-top: 1px solid var(--border-color);">
+                    <button class="sidebar-btn secondary" id="clearModeHistoryBtn" style="width: 100%; justify-content: center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                        <span>Clear this mode history</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Data Source Panel -->
+            <div class="quick-questions-panel" id="dataSourcePanel" style="display: none;">
+                <div class="panel-header">
+                    <h3>📊 Data Source</h3>
+                    <button class="close-panel-btn" onclick="closeDataSourcePanel()">✕</button>
+                </div>
+                <div class="panel-content">
+                    <div class="questions-category">
+                        <div id="dataSourceList" class="default-questions-list">
+                            <!-- Data sources will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Groups Panel -->
+            <div class="quick-questions-panel" id="groupsPanel" style="display: none;">
+                <div class="panel-header">
+                    <h3>👥 My Groups</h3>
+                    <button class="close-panel-btn" onclick="closeGroupsPanel()">✕</button>
+                </div>
+                <div class="panel-content">
+                    <div class="questions-category">
+                        <div id="groupsList" class="default-questions-list">
+                            <!-- Groups will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Chats Section - Always visible by default -->
+            <div class="sidebar-section" id="recentChatsSection">
+                <div class="recent-chats-list" id="recentChatsSidebarList">
+                    <!-- Recent chats will be populated here -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="sidebar-footer">
+        </div>
+    </div>
+
+    <!-- Main Chat Container with Sidebar -->
+    <div class="chatbot-container-with-sidebar">
+    <div class="chatbot-container">
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+            <!-- Welcome Screen -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-content">
+                    <h1 class="welcome-title">Hello, {{ user.username }}!</h1>
+                    <p class="welcome-subtitle">How can I help you today?</p>
+                </div>
+            </div>
+
+            <!-- Messages Container -->
+            <div class="messages-container" id="messagesContainer" style="display: none;">
+                <!-- Messages will be added here -->
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-input" 
+                        placeholder="Message Insights AI..."
+                        rows="1"
+                    ></textarea>
+                    
+                    <button class="ai-mode-btn" id="aiModeToggle" title="Toggle Thinking Mode">
+                     <svg
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <!-- Rays -->
+  <path d="M12 1.5v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M4.2 4.2l1.4 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M1.5 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M4.2 19.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M19.8 19.8l-1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M20.5 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M19.8 4.2l-1.4 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Bulb -->
+  <path
+    d="M8 14c-1.2-1.3-2-3-2-4.8A6 6 0 0 1 12 3a6 6 0 0 1 6 6.2c0 1.8-.8 3.5-2 4.8H8z"
+    stroke="currentColor"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+
+  <!-- Bulb base -->
+  <path d="M9.5 17h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M10 19h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+
+                    </button>
+                    
+                    <button class="ai-mode-btn" id="groupOnlyModeBtn" title="Toggle Group Only Mode (Messages only to group members)" style="display: none;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- People icon -->
+                            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" stroke="currentColor" stroke-width="1.5" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    
+                    <button class="stop-btn" id="stopBtn" style="display: none;">
+                        <span>⬜</span>
+                    </button>
+                    
+                    <button class="send-btn" id="sendBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+          
+    <!-- Include the clean chatbot JavaScript -->
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}"></script>
+  
+</html>

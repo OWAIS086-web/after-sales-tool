@@ -1,0 +1,400 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-01-08",
+  "description": "PRODUCTION-GRADE hardcoded query templates - ALL SQL COPIED from tier2_views.py",
+  "sql_verification_status": "MANUALLY VERIFIED AGAINST TIER 2",
+  "important_notes": [
+    "All SQL patterns are copied directly from tier2_views.py",
+    "Table names verified against actual database schema",
+    "Date columns verified: RoMaster.Date, CampaignRpt.RDate, SFSMaster.ServiceDate, PDIMaster.Date, FFSMaster.Date",
+    "Warranty data: RoMaster WHERE JobCatagories LIKE '%Warranty%' (note misspelling)",
+    "Dealership JOINs always use: LEFT JOIN DealerRegister d ON r.DealerId = d.ID WHERE d.DealerName IS NOT NULL"
+  ],
+  "templates": [
+
+    {
+      "template_id": "ro_total_count",
+      "category": "repair_orders",
+      "query_patterns": [
+        "How many repair orders?",
+        "Total repair orders",
+        "Count all ROs",
+        "Total repair orders across all time",
+        "Number of repair orders"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalRepairOrders FROM RoMaster",
+      "parameters": [],
+      "description": "Total count of all repair orders (no date filter)",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many repair orders?",
+      "expected_columns": ["TotalRepairOrders"]
+    },
+
+    {
+      "template_id": "ro_count_by_year",
+      "category": "repair_orders",
+      "query_patterns": [
+        "How many repair orders in {year}?",
+        "Total repair orders in {year}",
+        "Count ROs in {year}",
+        "Repair orders for {year}"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalRepairOrders FROM RoMaster WHERE strftime('%Y', Date) = '{year}'",
+      "parameters": ["year"],
+      "description": "Count repair orders for a specific year",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many repair orders in 2025?",
+      "expected_columns": ["TotalRepairOrders"]
+    },
+
+    {
+      "template_id": "ro_count_by_month",
+      "category": "repair_orders",
+      "query_patterns": [
+        "How many repair orders in {month} {year}?",
+        "Total ROs in {month} {year}",
+        "Count repair orders in {month} {year}"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalRepairOrders FROM RoMaster WHERE strftime('%Y-%m', Date) = '{year}-{month_num}'",
+      "parameters": ["month", "year"],
+      "description": "Count repair orders for specific month and year",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many repair orders in December 2025?",
+      "expected_columns": ["TotalRepairOrders"]
+    },
+
+    {
+      "template_id": "ro_by_dealership_alltime",
+      "category": "repair_orders",
+      "query_patterns": [
+        "Which dealership generated the most repair orders?",
+        "Which dealership generated the most repair orders of all time?",
+        "Top dealership by repair orders historically",
+        "Dealership with most ROs ever"
+      ],
+      "sql_template": "SELECT d.DealerName, d.DealerCode, COUNT(*) as TotalOrders, SUM(r.TAmount) as TotalRevenue, COUNT(DISTINCT r.VINNO) as UniqueVehicles, MIN(r.Date) as FirstOrder, MAX(r.Date) as LastOrder FROM RoMaster r LEFT JOIN DealerRegister d ON r.DealerId = d.ID WHERE d.DealerName IS NOT NULL GROUP BY d.DealerName, d.DealerCode ORDER BY TotalOrders DESC LIMIT 10",
+      "parameters": [],
+      "description": "Top 10 dealerships by repair order count (all time)",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Which dealership generated the most repair orders of all time?",
+      "expected_columns": ["DealerName", "DealerCode", "TotalOrders", "TotalRevenue", "UniqueVehicles", "FirstOrder", "LastOrder"]
+    },
+
+    {
+      "template_id": "ro_by_dealership_year",
+      "category": "repair_orders",
+      "query_patterns": [
+        "Which dealership generated the most repair orders in {year}?",
+        "Top dealerships by repair orders in {year}",
+        "Dealership ranking for {year} repair orders"
+      ],
+      "sql_template": "SELECT d.DealerName, d.DealerCode, COUNT(*) as TotalOrders, SUM(r.TAmount) as TotalRevenue, COUNT(DISTINCT r.VINNO) as UniqueVehicles, MIN(r.Date) as FirstOrder, MAX(r.Date) as LastOrder FROM RoMaster r LEFT JOIN DealerRegister d ON r.DealerId = d.ID WHERE d.DealerName IS NOT NULL AND strftime('%Y', r.Date) = '{year}' GROUP BY d.DealerName, d.DealerCode ORDER BY TotalOrders DESC LIMIT 10",
+      "parameters": ["year"],
+      "description": "Top 10 dealerships by repair orders for specific year",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Which dealership generated the most repair orders in 2025?",
+      "expected_columns": ["DealerName", "DealerCode", "TotalOrders", "TotalRevenue", "UniqueVehicles", "FirstOrder", "LastOrder"]
+    },
+
+    {
+      "template_id": "ro_by_dealership_month",
+      "category": "repair_orders",
+      "query_patterns": [
+        "Which dealership generated the most repair orders in {month} {year}?",
+        "Show top dealerships by repair orders in {month} {year}",
+        "Dealership ranking for {month} {year}"
+      ],
+      "sql_template": "SELECT d.DealerName, d.DealerCode, COUNT(*) as TotalOrders, SUM(r.TAmount) as TotalRevenue, COUNT(DISTINCT r.VINNO) as UniqueVehicles, MIN(r.Date) as FirstOrder, MAX(r.Date) as LastOrder FROM RoMaster r LEFT JOIN DealerRegister d ON r.DealerId = d.ID WHERE d.DealerName IS NOT NULL AND strftime('%Y-%m', r.Date) = '{year}-{month_num}' GROUP BY d.DealerName, d.DealerCode ORDER BY TotalOrders DESC LIMIT 10",
+      "parameters": ["month", "year"],
+      "description": "Top 10 dealerships by repair orders for specific month",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Show top dealerships by repair orders in November 2025",
+      "expected_columns": ["DealerName", "DealerCode", "TotalOrders", "TotalRevenue", "UniqueVehicles", "FirstOrder", "LastOrder"]
+    },
+
+    {
+      "template_id": "warranty_total_count",
+      "category": "warranty",
+      "query_patterns": [
+        "How many warranty claims?",
+        "Total warranty claims",
+        "Count all warranty complaints",
+        "Number of warranty claims"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalWarrantyClaims FROM RoMaster WHERE JobCatagories LIKE '%Warranty%'",
+      "parameters": [],
+      "description": "Total count of warranty claims from RoMaster (note: JobCatagories misspelling)",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many warranty claims?",
+      "expected_columns": ["TotalWarrantyClaims"]
+    },
+
+    {
+      "template_id": "warranty_count_by_year",
+      "category": "warranty",
+      "query_patterns": [
+        "How many warranty claims in {year}?",
+        "Total warranty claims in {year}",
+        "Count warranty complaints in {year}"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalWarrantyClaims FROM RoMaster WHERE JobCatagories LIKE '%Warranty%' AND strftime('%Y', Date) = '{year}'",
+      "parameters": ["year"],
+      "description": "Count warranty claims for specific year",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many warranty claims in 2025?",
+      "expected_columns": ["TotalWarrantyClaims"]
+    },
+
+    {
+      "template_id": "warranty_count_by_month",
+      "category": "warranty",
+      "query_patterns": [
+        "How many warranty claims in {month} {year}?",
+        "Total warranty claims in {month} {year}",
+        "Count warranty complaints in {month} {year}",
+        "Show warranty claims from {month} {year}"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalWarrantyClaims FROM RoMaster WHERE JobCatagories LIKE '%Warranty%' AND strftime('%Y-%m', Date) = '{year}-{month_num}'",
+      "parameters": ["month", "year"],
+      "description": "Count warranty claims for specific month",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many warranty claims in January 2025?",
+      "expected_columns": ["TotalWarrantyClaims"]
+    },
+
+    {
+      "template_id": "warranty_by_dealership",
+      "category": "warranty",
+      "query_patterns": [
+        "Which dealership has the most warranty complaints?",
+        "Which dealership has highest warranty claims?",
+        "Top dealership by warranty complaints"
+      ],
+      "sql_template": "SELECT d.DealerName, d.DealerCode, COUNT(*) as ComplaintCount, SUM(r.TAmount) as TotalWarrantyCost, GROUP_CONCAT(DISTINCT SUBSTR(r.JobRequest, 1, 50)) as CommonIssues FROM RoMaster r LEFT JOIN DealerRegister d ON r.DealerId = d.ID WHERE r.JobCatagories LIKE '%Warranty%' AND d.DealerName IS NOT NULL GROUP BY d.DealerName, d.DealerCode ORDER BY ComplaintCount DESC LIMIT 10",
+      "parameters": [],
+      "description": "Top 10 dealerships by warranty complaint count (all time)",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Which dealership has the most warranty complaints?",
+      "expected_columns": ["DealerName", "DealerCode", "ComplaintCount", "TotalWarrantyCost", "CommonIssues"]
+    },
+
+    {
+      "template_id": "campaign_total_count",
+      "category": "campaign",
+      "query_patterns": [
+        "How many free service campaigns?",
+        "Total campaigns",
+        "Count all campaigns"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalCampaigns FROM CampaignRpt",
+      "parameters": [],
+      "description": "Total count of all campaign records from CampaignRpt",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many free service campaigns?",
+      "expected_columns": ["TotalCampaigns"]
+    },
+
+    {
+      "template_id": "campaign_count_by_year",
+      "category": "campaign",
+      "query_patterns": [
+        "How many campaigns in {year}?",
+        "Total campaigns in {year}",
+        "Count campaigns in {year}"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalCampaigns FROM CampaignRpt WHERE strftime('%Y', RDate) = '{year}'",
+      "parameters": ["year"],
+      "description": "Count campaigns for specific year (uses RDate column)",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many campaigns in 2025?",
+      "expected_columns": ["TotalCampaigns"]
+    },
+
+    {
+      "template_id": "campaign_count_by_month",
+      "category": "campaign",
+      "query_patterns": [
+        "How many campaigns in {month} {year}?",
+        "Total campaigns in {month} {year}",
+        "Count campaigns in {month} {year}"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalCampaigns FROM CampaignRpt WHERE strftime('%Y-%m', RDate) = '{year}-{month_num}'",
+      "parameters": ["month", "year"],
+      "description": "Count campaigns for specific month (uses RDate column)",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many campaigns in September 2025?",
+      "expected_columns": ["TotalCampaigns"]
+    },
+
+    {
+      "template_id": "ffs_total_count",
+      "category": "ffs",
+      "query_patterns": [
+        "How many FFS performed?",
+        "Total First Free Services",
+        "Count all FFS",
+        "How many FFS in total?"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalFFSInspections FROM FFSMaster",
+      "parameters": [],
+      "description": "Total count of all FFS inspections from FFSMaster",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many FFS performed?",
+      "expected_columns": ["TotalFFSInspections"]
+    },
+
+    {
+      "template_id": "ffs_by_dealership",
+      "category": "ffs",
+      "query_patterns": [
+        "Which dealership performed most FFS?",
+        "Top dealership by FFS services",
+        "Dealership with highest FFS count"
+      ],
+      "sql_template": "SELECT DealershipName, COUNT(*) as TotalFFS FROM FFSMaster WHERE DealershipName IS NOT NULL GROUP BY DealershipName ORDER BY TotalFFS DESC LIMIT 10",
+      "parameters": [],
+      "description": "Top 10 dealerships by FFS count (uses native DealershipName column)",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Which dealership performed most FFS?",
+      "expected_columns": ["DealershipName", "TotalFFS"]
+    },
+
+    {
+      "template_id": "sfs_total_count",
+      "category": "sfs",
+      "query_patterns": [
+        "How many SFS completed?",
+        "Total Second Free Services",
+        "Count all SFS",
+        "Total SFS inspections",
+        "Total SFS inspections across all dealerships"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalSFSInspections FROM SFSMaster",
+      "parameters": [],
+      "description": "Total count of all SFS inspections from SFSMaster",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many SFS completed?",
+      "expected_columns": ["TotalSFSInspections"]
+    },
+
+    {
+      "template_id": "sfs_by_dealership",
+      "category": "sfs",
+      "query_patterns": [
+        "Which dealership performed most SFS?",
+        "Top dealership by SFS services",
+        "Dealership with highest SFS count"
+      ],
+      "sql_template": "SELECT DealershipName, COUNT(*) as TotalSFS FROM SFSMaster WHERE DealershipName IS NOT NULL GROUP BY DealershipName ORDER BY TotalSFS DESC LIMIT 10",
+      "parameters": [],
+      "description": "Top 10 dealerships by SFS count (uses native DealershipName column)",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Which dealership performed most SFS?",
+      "expected_columns": ["DealershipName", "TotalSFS"]
+    },
+
+    {
+      "template_id": "pdi_total_count",
+      "category": "pdi",
+      "query_patterns": [
+        "How many PDI reports?",
+        "Total PDI inspections",
+        "Count all PDIs",
+        "Total number of PDI reports"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalPDIReports FROM PDIMaster",
+      "parameters": [],
+      "description": "Total count of all PDI reports from PDIMaster",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many PDI reports?",
+      "expected_columns": ["TotalPDIReports"]
+    },
+
+    {
+      "template_id": "pdi_count_by_year",
+      "category": "pdi",
+      "query_patterns": [
+        "How many PDI reports in {year}?",
+        "Total PDIs in {year}",
+        "Count PDI reports from {year}"
+      ],
+      "sql_template": "SELECT COUNT(*) as TotalPDIReports FROM PDIMaster WHERE strftime('%Y', Date) = '{year}'",
+      "parameters": ["year"],
+      "description": "Count PDI reports for specific year",
+      "verified": true,
+      "expected_result_type": "count",
+      "test_query": "How many PDI reports in 2025?",
+      "expected_columns": ["TotalPDIReports"]
+    },
+
+    {
+      "template_id": "pdi_by_dealership",
+      "category": "pdi",
+      "query_patterns": [
+        "Which dealership submitted most PDI reports?",
+        "Which dealership submitted the most PDI reports historically?",
+        "Which dealership had most PDI reports?",
+        "Top dealership by PDI count"
+      ],
+      "sql_template": "SELECT d.DealerName, d.DealerCode, COUNT(*) as TotalPDI, SUM(CASE WHEN p.Status LIKE '%objection%' OR p.Status LIKE '%Rejected%' THEN 1 ELSE 0 END) as PDIsWithObjections, ROUND(100.0 * SUM(CASE WHEN p.Status LIKE '%objection%' OR p.Status LIKE '%Rejected%' THEN 1 ELSE 0 END) / COUNT(*), 2) as ObjectionRate FROM PDIMaster p LEFT JOIN DealerRegister d ON p.DealerID = d.ID WHERE d.DealerName IS NOT NULL GROUP BY d.DealerName, d.DealerCode ORDER BY TotalPDI DESC LIMIT 10",
+      "parameters": [],
+      "description": "Top 10 dealerships by PDI report count (all time)",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Which dealership submitted the most PDI reports historically?",
+      "expected_columns": ["DealerName", "DealerCode", "TotalPDI", "PDIsWithObjections", "ObjectionRate"]
+    },
+
+    {
+      "template_id": "pdi_by_dealership_year",
+      "category": "pdi",
+      "query_patterns": [
+        "Which dealership had most PDI reports in {year}?",
+        "Which dealership submitted most PDI reports in {year}?",
+        "Top dealership by PDI in {year}"
+      ],
+      "sql_template": "SELECT d.DealerName, d.DealerCode, COUNT(*) as TotalPDI, SUM(CASE WHEN p.Status LIKE '%objection%' OR p.Status LIKE '%Rejected%' THEN 1 ELSE 0 END) as PDIsWithObjections, ROUND(100.0 * SUM(CASE WHEN p.Status LIKE '%objection%' OR p.Status LIKE '%Rejected%' THEN 1 ELSE 0 END) / COUNT(*), 2) as ObjectionRate FROM PDIMaster p LEFT JOIN DealerRegister d ON p.DealerID = d.ID WHERE d.DealerName IS NOT NULL AND strftime('%Y', p.Date) = '{year}' GROUP BY d.DealerName, d.DealerCode ORDER BY TotalPDI DESC LIMIT 10",
+      "parameters": ["year"],
+      "description": "Top 10 dealerships by PDI count for specific year",
+      "verified": true,
+      "expected_result_type": "ranking",
+      "test_query": "Which dealership had most PDI reports in 2025?",
+      "expected_columns": ["DealerName", "DealerCode", "TotalPDI", "PDIsWithObjections", "ObjectionRate"]
+    },
+
+    {
+      "template_id": "pdi_objection_percentage",
+      "category": "pdi",
+      "query_patterns": [
+        "What percentage of PDIs had objections?",
+        "PDI objection rate",
+        "Percentage of PDI reports with objections"
+      ],
+      "sql_template": "SELECT ROUND(CAST(SUM(CASE WHEN Status LIKE '%objection%' OR Status LIKE '%Rejected%' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) * 100, 2) as ObjectionPercentage, COUNT(*) as TotalPDI, SUM(CASE WHEN Status LIKE '%objection%' OR Status LIKE '%Rejected%' THEN 1 ELSE 0 END) as PDIsWithObjections FROM PDIMaster",
+      "parameters": [],
+      "description": "Percentage of PDI reports that had objections or were rejected",
+      "verified": true,
+      "expected_result_type": "percentage",
+      "test_query": "What percentage of PDIs had objections?",
+      "expected_columns": ["ObjectionPercentage", "TotalPDI", "PDIsWithObjections"]
+    }
+  ]
+}

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Sign In - LUCID Enterprise AI</title>
+    
+    <!-- Load theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="animated-background">
+        <canvas id="dotsCanvas"></canvas>
+    </div>
+
+    <div class="auth-container">
+        <!-- Navigation -->
+        <nav class="auth-nav">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <img src="{{ url_for('static', filename='images/light-logo.svg') }}" alt="Insights AI" class="brand-logo" id="authLogo">
+                    <span class="brand-text">LUCID Enterprise AI</span>
+                </div>
+                <div class="nav-actions">
+                    <a href="{{ url_for('index') }}" class="nav-link">← Back to Home</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="auth-content">
+            <!-- Simple Form -->
+            <div class="auth-form-container">
+                <form method="POST" class="auth-form">
+                    <div class="auth-header">
+                        <h1 class="auth-title">Sign In</h1>
+                        <p class="auth-subtitle">Access your LUCID Enterprise AI account</p>
+                    </div>
+
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            <div class="flash-messages">
+                                {% for category, message in messages %}
+                                    <div class="flash-message {{ category }}">
+                                        <span class="flash-icon">
+                                            {% if category == 'error' %}⚠️{% else %}ℹ️{% endif %}
+                                        </span>
+                                        {{ message }}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
+
+                    <div class="form-group">
+                        <label for="username" class="form-label">
+                            <span class="label-icon">👤</span>
+                            Username
+                        </label>
+                        <div class="input-container">
+                            <input type="text" id="username" name="username" class="form-input" 
+                                   placeholder="Enter your username" required>
+                            <div class="input-focus-border"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">
+                            <span class="label-icon">🔒</span>
+                            Password
+                        </label>
+                        <div class="input-container">
+                            <input type="password" id="password" name="password" class="form-input" 
+                                   placeholder="Enter your password" required>
+                            <button type="button" class="password-toggle" onclick="togglePassword()">
+                                <span id="passwordToggleIcon">👁️</span>
+                            </button>
+                            <div class="input-focus-border"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="remember" name="remember" class="form-checkbox">
+                            <label for="remember" class="checkbox-label">
+                                <span class="checkbox-custom"></span>
+                                Remember me
+                            </label>
+                        </div>
+                        <a href="{{ url_for('forgot_password') }}" class="forgot-link">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="auth-btn">
+                        <span class="btn-text">Sign In</span>
+                        <span class="btn-icon">→</span>
+                        <div class="btn-ripple"></div>
+                    </button>
+
+                    <div class="auth-footer">
+                        <p>Don't have an account? 
+                            <a href="{{ url_for('register') }}" class="auth-link">
+                                Create one now
+                                <span class="link-arrow">→</span>
+                            </a>
+                        </p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme management - Load immediately
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+        
+        // Theme management
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+            updateLogo(savedTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const navLogo = document.getElementById('navLogo');
+            const sidebarLogo = document.getElementById('sidebarLogo');
+            
+            // Update logos based on theme
+            const logoSrc = theme === 'dark' 
+                ? '/static/images/light-logo.svg' 
+                : '/static/images/dark-logo.svg';
+            
+            if (navLogo) {
+                navLogo.src = logoSrc;
+            }
+            
+            if (sidebarLogo) {
+                sidebarLogo.src = logoSrc;
+            }
+        }
+
+        function updateLogo(theme) {
+            const logo = document.getElementById('authLogo');
+            
+            // Dark theme uses light logo, light theme uses dark logo
+            const logoFile = theme === 'dark' ? 'light-logo.svg' : 'dark-logo.svg';
+            
+            if (logo) {
+                logo.src = `/static/images/${logoFile}`;
+            }
+        }
+
+        // Password toggle
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.textContent = '👁️⃠';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.textContent = '👁️';
+            }
+        }
+
+        // Form animations
+        function initFormAnimations() {
+            const inputs = document.querySelectorAll('.form-input');
+            
+            inputs.forEach(input => {
+                input.addEventListener('focus', () => {
+                    input.parentElement.classList.add('focused');
+                });
+                
+                input.addEventListener('blur', () => {
+                    if (!input.value) {
+                        input.parentElement.classList.remove('focused');
+                    }
+                });
+                
+                if (input.value) {
+                    input.parentElement.classList.add('focused');
+                }
+            });
+        }
+
+        // Button ripple effect
+        function initButtonRipple() {
+            const authBtn = document.querySelector('.auth-btn');
+            
+            authBtn.addEventListener('click', function(e) {
+                const ripple = this.querySelector('.btn-ripple');
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+                
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.classList.add('active');
+                
+                setTimeout(() => {
+                    ripple.classList.remove('active');
+                }, 600);
+            });
+        }
+
+        // Initialize everything
+        window.addEventListener('load', () => {
+            loadTheme();
+            initFormAnimations();
+            initButtonRipple();
+            new InteractiveDots();
+        });
+
+        // Interactive Dots Animation
+        class InteractiveDots {
+            constructor() {
+                this.canvas = document.getElementById('dotsCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.dots = [];
+                this.mouse = { x: 0, y: 0 };
+                this.maxDistance = 120;
+                this.dotCount = 100;
+                
+                this.init();
+                this.animate();
+                this.bindEvents();
+            }
+
+            init() {
+                this.resize();
+                this.createDots();
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            createDots() {
+                this.dots = [];
+                for (let i = 0; i < this.dotCount; i++) {
+                    this.dots.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * 1.5,
+                        vy: (Math.random() - 0.5) * 1.5,
+                        radius: Math.random() * 2.5 + 1.5,
+                        baseVx: (Math.random() - 0.5) * 0.8,
+                        baseVy: (Math.random() - 0.5) * 0.8
+                    });
+                }
+            }
+
+            bindEvents() {
+                window.addEventListener('resize', () => this.resize());
+                
+                document.addEventListener('mousemove', (e) => {
+                    this.mouse.x = e.clientX;
+                    this.mouse.y = e.clientY;
+                });
+
+                document.addEventListener('mouseleave', () => {
+                    this.mouse.x = -1000;
+                    this.mouse.y = -1000;
+                });
+            }
+
+            drawDot(dot) {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const dotColor = isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(163, 16, 16, 0.6)';
+                
+                this.ctx.beginPath();
+                this.ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+                this.ctx.fillStyle = dotColor;
+                this.ctx.fill();
+            }
+
+            drawLine(dot1, dot2, distance) {
+                const opacity = 1 - (distance / this.maxDistance);
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const lineColor = isDark ? `rgba(255, 255, 255, ${opacity * 0.3})` : `rgba(163, 16, 16, ${opacity * 0.3})`;
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(dot1.x, dot1.y);
+                this.ctx.lineTo(dot2.x, dot2.y);
+                this.ctx.strokeStyle = lineColor;
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+            }
+
+            getDistance(dot1, dot2) {
+                const dx = dot1.x - dot2.x;
+                const dy = dot1.y - dot2.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            updateDots() {
+                this.dots.forEach(dot => {
+                    dot.vx += dot.baseVx * 0.02;
+                    dot.vy += dot.baseVy * 0.02;
+                    
+                    dot.x += dot.vx;
+                    dot.y += dot.vy;
+
+                    if (dot.x < 0 || dot.x > this.canvas.width) {
+                        dot.vx *= -0.8;
+                        dot.baseVx = (Math.random() - 0.5) * 0.8;
+                    }
+                    if (dot.y < 0 || dot.y > this.canvas.height) {
+                        dot.vy *= -0.8;
+                        dot.baseVy = (Math.random() - 0.5) * 0.8;
+                    }
+
+                    dot.x = Math.max(0, Math.min(this.canvas.width, dot.x));
+                    dot.y = Math.max(0, Math.min(this.canvas.height, dot.y));
+
+                    const mouseDistance = this.getDistance(dot, this.mouse);
+                    if (mouseDistance < this.maxDistance && mouseDistance > 0) {
+                        const force = (this.maxDistance - mouseDistance) / this.maxDistance;
+                        const angle = Math.atan2(this.mouse.y - dot.y, this.mouse.x - dot.x);
+                        dot.vx += Math.cos(angle) * force * 0.05;
+                        dot.vy += Math.sin(angle) * force * 0.05;
+                    }
+
+                    dot.vx *= 0.98;
+                    dot.vy *= 0.98;
+                    
+                    dot.vx += (Math.random() - 0.5) * 0.01;
+                    dot.vy += (Math.random() - 0.5) * 0.01;
+                    
+                    const maxSpeed = 3;
+                    const speed = Math.sqrt(dot.vx * dot.vx + dot.vy * dot.vy);
+                    if (speed > maxSpeed) {
+                        dot.vx = (dot.vx / speed) * maxSpeed;
+                        dot.vy = (dot.vy / speed) * maxSpeed;
+                    }
+                });
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                for (let i = 0; i < this.dots.length; i++) {
+                    for (let j = i + 1; j < this.dots.length; j++) {
+                        const distance = this.getDistance(this.dots[i], this.dots[j]);
+                        if (distance < this.maxDistance) {
+                            this.drawLine(this.dots[i], this.dots[j], distance);
+                        }
+                    }
+
+                    const mouseDistance = this.getDistance(this.dots[i], this.mouse);
+                    if (mouseDistance < this.maxDistance) {
+                        this.drawLine(this.dots[i], this.mouse, mouseDistance);
+                    }
+                }
+
+                this.dots.forEach(dot => this.drawDot(dot));
+            }
+
+            animate() {
+                this.updateDots();
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // Form validation
+        document.querySelector('.auth-form').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                e.preventDefault();
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            // Add loading state
+            const submitBtn = document.querySelector('.auth-btn');
+            submitBtn.classList.add('loading');
+            submitBtn.querySelector('.btn-text').textContent = 'Signing in...';
+        });
+    </script>
+</body>
+</html>

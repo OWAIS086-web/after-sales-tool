@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Settings - {{ config.app.name or 'Insights AI' }}</title>
+    
+    <!-- Load theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings_fully_responsive.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-users.css') }}">
+</head>
+<body>
+    <!-- Debug elements for JavaScript (hidden) -->
+    <div id="debug-company" style="display: none;" data-company="{{ selected_company }}"></div>
+    <div id="debug-perms" style="display: none;" data-perms='{{ user_permissions | tojson }}'></div>
+
+    <!-- Animated Background -->
+    <div class="animated-background">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <!-- Standardized Navigation Header -->
+    <nav class="clean-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="{{ url_for('static', filename='images/dark-logo.svg') }}" alt="Insights AI" class="brand-logo" id="navLogo">
+                          <span class="brand-text">
+                    {% if selected_company == 'haval' %}
+                    HAVAL Enterprise AI
+                    {% elif selected_company == 'kia' %}
+                    KIA Insights
+                     {% elif selected_company == 'lucid' %}
+                    LUCID Enterprise AI
+                    {% else %}
+                    Insights AI
+                    {% endif %}
+                </span>
+                <span class="brand-badge">Settings</span>
+            </div>
+            <div class="nav-actions">
+                {% if (is_admin or user_permissions.get('pakwheels', True)) and selected_company != 'lucid' %}
+                <a href="{{ url_for('analysis') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z"/>
+                    </svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                {% if selected_company == 'lucid' and (is_admin or user_permissions.get('lucid', False)) %}
+                <a href="{{ url_for('lucid_analytics_route') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z"/>
+                    </svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('chatbot_advanced') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                    </svg>
+                    <span>Chatbot</span>
+                </a>
+
+                {% if (is_admin or user_permissions.get('whatsapp', False)) and selected_company != 'lucid' %}
+                <a href="{{ url_for('view_whatsapp_chat') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.465 3.516" />
+                    </svg>
+                    <span>WhatsApp</span>
+                </a>
+                {% endif %}
+                
+                <a href="{{ url_for('settings_page') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                    </svg>
+                    <span>Settings</span>
+                </a>
+                
+                <a href="{{ url_for('logout') }}" class="nav-cta">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                    </svg>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="settings-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="settings-sidebar">
+            <div class="sidebar-header">
+                <h2>Settings</h2>
+                <button class="sidebar-close" onclick="toggleSidebar()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="sidebar-item active" data-section="appearance" onclick="showSection('appearance'); toggleSidebar()">
+                    <span class="sidebar-icon">A</span>
+                    <span class="sidebar-label">Appearance</span>
+                </button>
+                <button class="sidebar-item" data-section="data-collection" onclick="showSection('data-collection'); toggleSidebar()">
+                    <span class="sidebar-icon">D</span>
+                    <span class="sidebar-label">Data Collection</span>
+                </button>
+                {% if is_scheduler_admin %}
+                <button class="sidebar-item" data-section="scheduler" onclick="showSection('scheduler'); toggleSidebar()">
+                    <span class="sidebar-icon">J</span>
+                    <span class="sidebar-label">Scheduler</span>
+                </button>
+                <button class="sidebar-item" data-section="control-users" onclick="showSection('control-users'); toggleSidebar()">
+                    <span class="sidebar-icon">U</span>
+                    <span class="sidebar-label">Users</span>
+                </button>
+                <button class="sidebar-item" data-section="logs" onclick="showSection('logs'); toggleSidebar()">
+                    <span class="sidebar-icon">L</span>
+                    <span class="sidebar-label">Logs</span>
+                </button>
+                {% endif %}
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="settings-main">
+            <!-- Mobile Menu Toggle -->
+            <div class="mobile-menu-toggle">
+                <button onclick="toggleSidebar()" class="menu-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1 class="page-title">Settings</h1>
+            </div>
+
+            <!-- Status Cards Removed - Server info not needed -->
+
+            <!-- Content Sections -->
+            <div class="settings-content">
+                <!-- Appearance Section -->
+                <section id="appearance-section" class="content-section active">
+                    <div class="section-header">
+                        <h2>Appearance & Theme</h2>
+                        <p>Customize your interface appearance</p>
+                    </div>
+
+                    <div class="section-card">
+                        <h3 class="card-title">Theme Selection</h3>
+                        <div class="theme-grid">
+                            <div class="theme-card" data-theme="light" onclick="selectTheme('light')">
+                                <div class="theme-preview light-preview"></div>
+                                <div class="theme-name">Light</div>
+                                <div class="theme-desc">Bright interface</div>
+                            </div>
+                            <div class="theme-card active" data-theme="dark" onclick="selectTheme('dark')">
+                                <div class="theme-preview dark-preview"></div>
+                                <div class="theme-name">Dark</div>
+                                <div class="theme-desc">Easy on eyes</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Data Collection Section -->
+                <section id="data-collection-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Data Collection</h2>
+                        <p>Manage data sources and scraping</p>
+                    </div>
+
+                    {% if company_config %}
+                    <div class="section-card">
+                        <h3 class="card-title">Company Configuration</h3>
+                        <div class="company-badge">{{ company_config.name }}</div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3 class="card-title">Data Sources</h3>
+                        <div class="source-grid">
+                            {% if user.company_id != 'lucid' %}
+                            <div class="source-badge {{ 'enabled' if company_config.has_pakwheels else 'disabled' }}">
+                                <span class="source-name">PakWheels</span>
+                                <span class="source-status">{{ 'On' if company_config.has_pakwheels else 'Off' }}</span>
+                            </div>
+                            <div class="source-badge {{ 'enabled' if company_config.has_whatsapp else 'disabled' }}">
+                                <span class="source-name">WhatsApp</span>
+                                <span class="source-status">{{ 'On' if company_config.has_whatsapp else 'Off' }}</span>
+                            </div>
+                            <div class="source-badge {{ 'enabled' if company_config.has_reddit else 'disabled' }}">
+                                <span class="source-name">Reddit</span>
+                                <span class="source-status">{{ 'On' if company_config.has_reddit else 'Off' }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="source-badge {{ 'enabled' if company_config.has_lucid else 'disabled' }}">
+                                <span class="source-name">Lucid Forum</span>
+                                <span class="source-status">{{ 'On' if company_config.has_lucid else 'Off' }}</span>
+                            </div>
+                            <div class="source-badge {{ 'enabled' if company_config.has_insights else 'disabled' }}">
+                                <span class="source-name">AI Insights</span>
+                                <span class="source-status">{{ 'On' if company_config.has_insights else 'Off' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user.company_id != 'lucid' %}
+                    <div class="section-card">
+                        <h3 class="card-title">PakWheels Scraping</h3>
+                        <div class="form-group">
+                            <label>Number of Posts</label>
+                            <input type="number" class="form-input" id="pakWheelsPosts" min="10" max="10000" value="100" step="10">
+                            <small>10-10,000 posts (recommended: 100-500)</small>
+                        </div>
+                        <button class="btn btn-primary" id="startPakWheelsScraping" style="width: 100%;">Start Scraping</button>
+                        
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <label>Manual URL Scraping</label>
+                            <div style="display: flex; gap: 8px; flex-direction: column;">
+                                <input type="text" class="form-input" id="manualPakWheelsUrl" placeholder="https://www.pakwheels.com/forums/t/...">
+                                <button class="btn btn-secondary" id="scrapeManualUrl">Scrape URL</button>
+                            </div>
+                            <div id="urlValidationMessage" style="margin-top: 8px; font-size: 12px;"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user.company_id == 'haval' %}
+                    <div class="section-card">
+                        <h3 class="card-title">Reddit Scraping</h3>
+                        <div class="form-group">
+                            <label>Number of Posts</label>
+                            <input type="number" class="form-input" id="redditPosts" min="10" max="10000" value="100" step="10">
+                            <small>10-10,000 posts (recommended: 100-500)</small>
+                        </div>
+                        <button class="btn btn-primary" id="startRedditScraping" style="width: 100%;">Start Scraping</button>
+                        
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <label>Manual URL Scraping</label>
+                            <div style="display: flex; gap: 8px; flex-direction: column;">
+                                <input type="text" class="form-input" id="manualRedditUrl" placeholder="https://www.reddit.com/r/...">
+                                <button class="btn btn-secondary" id="scrapeManualRedditUrl">Scrape URL</button>
+                            </div>
+                            <div id="redditUrlValidationMessage" style="margin-top: 8px; font-size: 12px;"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user.company_id == 'lucid' %}
+                    <div class="section-card">
+                        <h3 class="card-title">Reddit Lucid Scraping</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">Scrape Lucid Motors discussions from r/lucidmotors and r/LUCID</p>
+                        <div class="form-group">
+                            <label>Posts per Subreddit</label>
+                            <input type="number" class="form-input" id="redditLucidPosts" min="10" max="10000" value="100" step="10">
+                            <small>10-10,000 posts per subreddit (recommended: 100-500)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Delay Between Subreddits (seconds)</label>
+                            <input type="number" class="form-input" id="redditLucidDelay" min="1" max="60" value="5" step="1">
+                            <small>Delay to avoid rate limiting (1-60 seconds)</small>
+                        </div>
+                        <button class="btn btn-primary" id="startRedditLucidScraping" style="width: 100%;">Start Scraping</button>
+                        <div id="redditLucidScrapingProgress" style="display: none; margin-top: 20px;">
+                            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span id="redditLucidProgressText">Initializing...</span>
+                                    <span id="redditLucidProgressPercent">0%</span>
+                                </div>
+                                <div style="width: 100%; height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden;">
+                                    <div id="redditLucidProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); transition: width 0.3s ease;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <label>Manual URL Scraping</label>
+                            <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 12px;">Scrape a specific Reddit post or thread</p>
+                            <div style="display: flex; gap: 8px; flex-direction: column;">
+                                <input type="text" class="form-input" id="manualRedditLucidUrl" placeholder="https://www.reddit.com/r/lucidmotors/comments/...">
+                                <input type="number" class="form-input" id="manualRedditLucidMaxPosts" min="1" max="1000" value="50" step="1" placeholder="Max posts (1-1000)">
+                                <button class="btn btn-secondary" id="scrapeManualRedditLucidUrl">Scrape URL</button>
+                            </div>
+                            <div id="redditLucidUrlValidationMessage" style="margin-top: 8px; font-size: 12px;"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user.company_id == 'haval' or user.company_id == 'lucid' %}
+                    <div class="section-card">
+                        <h3 class="card-title">Lucid Forum Scraping</h3>
+                        <div class="form-group">
+                            <label>Forum Base URL</label>
+                            <input type="text" class="form-input" id="lucidBaseUrl" placeholder="https://lucidowners.com" value="https://lucidowners.com">
+                            <small>Base URL for Lucid forum</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Max Threads</label>
+                            <input type="number" class="form-input" id="lucidMaxThreads" min="1" max="1000" value="10" step="1">
+                            <small>Maximum number of threads to scrape (1-1,000)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Max Posts per Thread</label>
+                            <input type="number" class="form-input" id="lucidMaxPosts" min="10" max="10000" value="50" step="10">
+                            <small>Maximum posts per thread (10-10,000)</small>
+                        </div>
+                        <button class="btn btn-primary" id="startLucidScraping" style="width: 100%;">Start Scraping</button>
+                        
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <label>Manual Thread Scraping</label>
+                            <div style="display: flex; gap: 8px; flex-direction: column;">
+                                <input type="text" class="form-input" id="manualLucidUrl" placeholder="https://lucidowners.com/threads/...">
+                                <input type="number" class="form-input" id="manualLucidMaxPosts" min="10" max="10000" value="50" step="10" placeholder="Max posts">
+                                <button class="btn btn-secondary" id="scrapeManualLucidUrl">Scrape Thread</button>
+                            </div>
+                            <div id="lucidUrlValidationMessage" style="margin-top: 8px; font-size: 12px;"></div>
+                        </div>
+                    </div>
+
+                    {% if user.company_id != 'lucid' %}
+                    <div class="section-card">
+                        <h3 class="card-title">WATI Data Collection</h3>
+                        <div class="form-group">
+                            <label>Time Period</label>
+                            <select id="watiDays" class="form-input">
+                                <option value="1">Last 1 Day</option>
+                                <option value="3">Last 3 Days</option>
+                                <option value="7">Last 7 Days</option>
+                                <option value="14">Last 14 Days</option>
+                                <option value="30">Last 30 Days</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="startWatiFetching" style="width: 100%;">Fetch WATI Data</button>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </section>
+
+                <!-- Scheduler Section -->
+                {% if is_scheduler_admin %}
+                <section id="scheduler-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Scheduler</h2>
+                        <p>Manage automated jobs</p>
+                    </div>
+                    <div id="scheduler-content" style="min-height: 400px;">
+                        <p style="text-align: center; color: var(--text-secondary); padding: 40px 20px;">Loading scheduler...</p>
+                    </div>
+                    
+                    <!-- Execution History (Part of Scheduler) -->
+                    <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid var(--border-color);">
+                        <h3 style="margin-top: 0; color: var(--text-primary);">Execution History</h3>
+                        <div id="scheduler-history-content" style="min-height: 300px;">
+                            <p style="text-align: center; color: var(--text-secondary); padding: 40px 20px;">Loading history...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Control Users Section -->
+                <section id="control-users-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Control Users</h2>
+                        <p>Manage user access</p>
+                    </div>
+                    <div class="section-card">
+                        <div class="table-wrapper">
+                            <table class="users-table" id="usersTable">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Created</th>
+                                        <th>Last Login</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr><td colspan="5" class="loading">Loading users...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                <!-- Logs Section -->
+                {% if is_scheduler_admin %}
+                <section id="logs-section" class="content-section">
+                    <div class="section-header">
+                        <h2>System Logs</h2>
+                        <p>Download and manage system log files</p>
+                    </div>
+
+                    <div class="section-card">
+                        <h3 class="card-title">Available Log Files</h3>
+                        <div id="logs-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                            <p style="text-align: center; color: var(--text-secondary); padding: 40px 20px; grid-column: 1/-1;">Loading logs...</p>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3 class="card-title">Log Actions</h3>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="refreshLogsList()">
+                                🔄 Refresh List
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearAllLogs()">
+                                🗑️ Clear All Logs
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/settings-data-collection.js') }}"></script>
+    {% if is_scheduler_admin %}
+    <script src="{{ url_for('static', filename='js/settings-admin-users.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/settings-scheduler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/settings-logs.js') }}"></script>
+    {% endif %}
+
+</body>
+</html>

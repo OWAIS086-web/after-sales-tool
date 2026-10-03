@@ -1,0 +1,161 @@
+{
+  "table_name": "Suppliers",
+  "business_name": "Supplier Master Data",
+  "description": "Haval Pakistan supply chain with 20 suppliers: 15 China-based Haval component manufacturers (Tier 1/2) and 5 Haval Pakistan local operations (Tier 2/3). Tracks automotive suppliers with performance metrics, delivery reliability, and quality ratings.",
+  "primary_key": "supplier_id",
+  "common_use_cases": [
+    "Find top suppliers by total spend",
+    "Identify underperforming suppliers (low OTD or quality ratings)",
+    "Compare Haval Pakistan local operations vs China suppliers",
+    "Analyze supplier concentration by country or tier",
+    "Track supplier contract expiration dates",
+    "Evaluate China Tier 1/2 vs Pakistan local sourcing mix"
+  ],
+  "columns": [
+    {
+      "name": "supplier_id",
+      "type": "INTEGER",
+      "description": "Unique supplier identifier",
+      "primary_key": true,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "supplier_name",
+      "type": "TEXT",
+      "description": "Official supplier company name",
+      "primary_key": false,
+      "searchable": true,
+      "common_filters": true,
+      "examples": ["CATL Battery", "Great Wall Motors Powertrain", "Zhongcan Junda Automobile Sales", "Qingdao CSD Auto And Equipment Co., Ltd.", "Haval Pakistan Assembly Services", "Haval Parts Distribution Pakistan"]
+    },
+    {
+      "name": "country",
+      "type": "TEXT",
+      "description": "Supplier headquarters country",
+      "primary_key": false,
+      "searchable": true,
+      "common_filters": true,
+      "examples": ["Pakistan", "China"],
+      "business_rule": "China suppliers are Haval component manufacturers (Tier 1/2); Pakistan suppliers are Haval-branded local operations (Tier 2/3) for assembly, parts distribution, and services"
+    },
+    {
+      "name": "supplier_tier",
+      "type": "TEXT",
+      "description": "Supplier tier classification in automotive supply chain",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Tier 1", "Tier 2", "Tier 3"],
+      "business_rule": "Tier 1 = China critical system suppliers (CATL, Great Wall Motors Powertrain, Yanfeng, Huayu); Tier 2 = China component suppliers + Haval Pakistan operations; Tier 3 = Haval Pakistan local service networks"
+    },
+    {
+      "name": "status",
+      "type": "TEXT",
+      "description": "Current supplier relationship status",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Active", "Inactive", "Probation"]
+    },
+    {
+      "name": "on_time_delivery_rate",
+      "type": "REAL",
+      "description": "Percentage of deliveries completed on time (0-100)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "range": "90-97%"
+    },
+    {
+      "name": "quality_rating",
+      "type": "REAL",
+      "description": "Supplier quality score out of 5.0",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "range": "4.3-4.9"
+    },
+    {
+      "name": "contract_start_date",
+      "type": "DATE",
+      "description": "Contract effective start date",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "contract_end_date",
+      "type": "DATE",
+      "description": "Contract expiration date",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "payment_terms",
+      "type": "TEXT",
+      "description": "Payment terms agreed with supplier",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "examples": ["Net 30", "Net 45", "Net 60", "2/10 Net 30"]
+    },
+    {
+      "name": "total_orders",
+      "type": "INTEGER",
+      "description": "Total number of purchase orders placed",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "total_spend_usd",
+      "type": "REAL",
+      "description": "Total procurement spend with supplier in USD",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "last_audit_date",
+      "type": "DATE",
+      "description": "Most recent supplier audit date",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    }
+  ],
+  "relationships": [
+    {
+      "related_table": "Parts",
+      "join_column": "supplier_id",
+      "relationship_type": "one_to_many",
+      "description": "One supplier provides many parts"
+    },
+    {
+      "related_table": "Purchase_Orders",
+      "join_column": "supplier_id",
+      "relationship_type": "one_to_many",
+      "description": "One supplier receives many purchase orders"
+    },
+    {
+      "related_table": "Shipments",
+      "join_column": "supplier_id",
+      "relationship_type": "one_to_many",
+      "description": "One supplier has many shipments"
+    }
+  ],
+  "business_rules": [
+    "Only Active suppliers should receive new orders",
+    "OTD rate below 90% triggers supplier review",
+    "Quality rating below 4.0 triggers quality improvement plan",
+    "Contract renewal review starts 90 days before expiration"
+  ],
+  "sample_queries": [
+    "SELECT supplier_name, total_spend_usd FROM Suppliers ORDER BY total_spend_usd DESC LIMIT 5",
+    "SELECT COUNT(*) FROM Suppliers WHERE status='Active'",
+    "SELECT country, COUNT(*) as supplier_count FROM Suppliers GROUP BY country",
+    "SELECT supplier_name FROM Suppliers WHERE on_time_delivery_rate < 93"
+  ]
+}

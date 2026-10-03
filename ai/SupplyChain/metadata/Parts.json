@@ -1,0 +1,180 @@
+{
+  "table_name": "Parts",
+  "business_name": "Parts Catalog",
+  "description": "Complete catalog of automotive parts and components with supplier relationships, costs, and inventory parameters. Covers 5 major categories: Powertrain, Electrical, Chassis, Body, and Interior.",
+  "primary_key": "part_id",
+  "common_use_cases": [
+    "Find parts by category or subcategory",
+    "Identify expensive or critical parts",
+    "Check parts with long lead times",
+    "Find parts from specific suppliers",
+    "Analyze part costs and specifications"
+  ],
+  "columns": [
+    {
+      "name": "part_id",
+      "type": "INTEGER",
+      "description": "Unique part identifier",
+      "primary_key": true,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "part_number",
+      "type": "TEXT",
+      "description": "Haval part number (format: HVL-XXX-NNNNN)",
+      "primary_key": false,
+      "searchable": true,
+      "common_filters": true,
+      "examples": ["HVL-POW-00001", "HVL-ELE-00023", "HVL-CHA-00045"]
+    },
+    {
+      "name": "part_name",
+      "type": "TEXT",
+      "description": "Descriptive part name with variant",
+      "primary_key": false,
+      "searchable": true,
+      "common_filters": false,
+      "examples": ["Engine Assembly - Variant A", "Battery Pack - Variant C", "Dashboard - Variant B"]
+    },
+    {
+      "name": "category",
+      "type": "TEXT",
+      "description": "Main part category",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Powertrain", "Electrical", "Chassis", "Body", "Interior"]
+    },
+    {
+      "name": "subcategory",
+      "type": "TEXT",
+      "description": "Detailed part subcategory",
+      "primary_key": false,
+      "searchable": true,
+      "common_filters": true,
+      "examples": ["Engine Assembly", "Battery Pack", "Suspension System", "Dashboard", "Seats"]
+    },
+    {
+      "name": "supplier_id",
+      "type": "INTEGER",
+      "description": "Foreign key to Suppliers table",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "is_foreign_key": true
+    },
+    {
+      "name": "unit_cost_usd",
+      "type": "REAL",
+      "description": "Cost per unit in USD",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "range": "$50 - $5,000"
+    },
+    {
+      "name": "unit_cost_pkr",
+      "type": "REAL",
+      "description": "Cost per unit in Pakistani Rupees (PKR). Exchange rate ~280 PKR/USD",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "range": "PKR 14,000 - PKR 1,400,000",
+      "business_rule": "Use PKR for CEO reporting in Pakistan. Approximate rate: 280 PKR = 1 USD"
+    },
+    {
+      "name": "lead_time_days",
+      "type": "INTEGER",
+      "description": "Supplier lead time in days",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "range": "7-60 days"
+    },
+    {
+      "name": "minimum_order_quantity",
+      "type": "INTEGER",
+      "description": "Minimum order quantity (MOQ)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "examples": [10, 20, 50, 100, 200, 500]
+    },
+    {
+      "name": "safety_stock_level",
+      "type": "INTEGER",
+      "description": "Target safety stock quantity",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "range": "50-500 units"
+    },
+    {
+      "name": "reorder_point",
+      "type": "INTEGER",
+      "description": "Quantity threshold triggering reorder",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "range": "100-800 units"
+    },
+    {
+      "name": "weight_kg",
+      "type": "REAL",
+      "description": "Part weight in kilograms",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "range": "0.5-50 kg"
+    },
+    {
+      "name": "is_critical",
+      "type": "BOOLEAN",
+      "description": "Whether part is business-critical (1=Yes, 0=No)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "specifications",
+      "type": "TEXT",
+      "description": "JSON with material, certification, warranty details",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    }
+  ],
+  "relationships": [
+    {
+      "related_table": "Suppliers",
+      "join_column": "supplier_id",
+      "relationship_type": "many_to_one",
+      "description": "Many parts from one supplier"
+    },
+    {
+      "related_table": "Purchase_Orders",
+      "join_column": "part_id",
+      "relationship_type": "one_to_many",
+      "description": "One part in many purchase orders"
+    },
+    {
+      "related_table": "Inventory",
+      "join_column": "part_id",
+      "relationship_type": "one_to_many",
+      "description": "One part stored in many warehouses"
+    }
+  ],
+  "business_rules": [
+    "Critical parts should maintain higher safety stock",
+    "Lead time > 30 days requires safety stock adjustment",
+    "Powertrain and Electrical parts often marked critical",
+    "MOQ affects order quantities and inventory planning"
+  ],
+  "sample_queries": [
+    "SELECT COUNT(*) FROM Parts WHERE category='Powertrain'",
+    "SELECT part_name, unit_cost_usd FROM Parts ORDER BY unit_cost_usd DESC LIMIT 10",
+    "SELECT category, AVG(lead_time_days) FROM Parts GROUP BY category",
+    "SELECT part_number, part_name FROM Parts WHERE is_critical=1 AND lead_time_days > 30"
+  ]
+}

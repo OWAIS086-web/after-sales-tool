@@ -1,0 +1,194 @@
+{
+  "table_name": "Purchase_Orders",
+  "business_name": "Purchase Orders",
+  "description": "Procurement transactions tracking orders placed with suppliers. Includes order status, quantities, costs, delivery dates, and payment status. Covers last 12 months of procurement activity.",
+  "primary_key": "order_id",
+  "common_use_cases": [
+    "Track pending and in-transit orders",
+    "Monitor delayed or overdue deliveries",
+    "Calculate total procurement spend",
+    "Find high-priority orders",
+    "Analyze orders by supplier or part"
+  ],
+  "columns": [
+    {
+      "name": "order_id",
+      "type": "INTEGER",
+      "description": "Unique purchase order identifier",
+      "primary_key": true,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "po_number",
+      "type": "TEXT",
+      "description": "Purchase order number (format: PO-YYYY-NNNNNN)",
+      "primary_key": false,
+      "searchable": true,
+      "common_filters": true,
+      "examples": ["PO-2025-000001", "PO-2025-000234"]
+    },
+    {
+      "name": "supplier_id",
+      "type": "INTEGER",
+      "description": "Foreign key to Suppliers table",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "is_foreign_key": true
+    },
+    {
+      "name": "part_id",
+      "type": "INTEGER",
+      "description": "Foreign key to Parts table",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "is_foreign_key": true
+    },
+    {
+      "name": "order_date",
+      "type": "DATE",
+      "description": "Date when order was placed",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "range": "Last 12 months"
+    },
+    {
+      "name": "expected_delivery_date",
+      "type": "DATE",
+      "description": "Expected delivery date",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "actual_delivery_date",
+      "type": "DATE",
+      "description": "Actual delivery date (NULL if not delivered)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "quantity_ordered",
+      "type": "INTEGER",
+      "description": "Quantity ordered in units",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "quantity_received",
+      "type": "INTEGER",
+      "description": "Quantity actually received",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "unit_price_usd",
+      "type": "REAL",
+      "description": "Price per unit in USD",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "unit_price_pkr",
+      "type": "REAL",
+      "description": "Price per unit in Pakistani Rupees",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "business_rule": "PKR prices calculated at ~280 PKR/USD exchange rate"
+    },
+    {
+      "name": "total_amount_usd",
+      "type": "REAL",
+      "description": "Total order value in US Dollars",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "total_amount_pkr",
+      "type": "REAL",
+      "description": "Total order value in Pakistani Rupees (for CEO reporting)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "business_rule": "Primary currency for Pakistan CEO reporting. Total spend ~PKR 165 billion"
+    },
+    {
+      "name": "order_status",
+      "type": "TEXT",
+      "description": "Current order status",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Pending", "Confirmed", "In Transit", "Delivered", "Partially Delivered", "Cancelled"]
+    },
+    {
+      "name": "payment_status",
+      "type": "TEXT",
+      "description": "Payment completion status",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Unpaid", "Partially Paid", "Paid"]
+    },
+    {
+      "name": "destination_warehouse",
+      "type": "TEXT",
+      "description": "Target warehouse for delivery",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Karachi Main Hub", "Lahore Assembly Plant", "Islamabad Central", "Shanghai Export", "Guangzhou Export"],
+      "business_rule": "Pakistan warehouses: Karachi (port/import hub), Lahore (assembly), Islamabad (distribution). China warehouses: Shanghai/Guangzhou (export staging)"
+    },
+    {
+      "name": "priority",
+      "type": "TEXT",
+      "description": "Order priority level",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Low", "Medium", "High", "Critical"]
+    }
+  ],
+  "relationships": [
+    {
+      "related_table": "Suppliers",
+      "join_column": "supplier_id",
+      "relationship_type": "many_to_one",
+      "description": "Many orders from one supplier"
+    },
+    {
+      "related_table": "Parts",
+      "join_column": "part_id",
+      "relationship_type": "many_to_one",
+      "description": "Many orders for one part"
+    },
+    {
+      "related_table": "Shipments",
+      "join_column": "order_id",
+      "relationship_type": "one_to_many",
+      "description": "One order may have multiple shipments"
+    }
+  ],
+  "business_rules": [
+    "Critical priority orders should be monitored daily",
+    "Orders overdue by 7+ days need supplier escalation",
+    "Partially delivered orders require follow-up",
+    "Payment should align with delivery status"
+  ],
+  "sample_queries": [
+    "SELECT COUNT(*) FROM Purchase_Orders WHERE order_status='Pending'",
+    "SELECT SUM(total_amount_usd) FROM Purchase_Orders WHERE order_date >= date('now','-12 months')",
+    "SELECT po_number FROM Purchase_Orders WHERE expected_delivery_date < date('now') AND order_status != 'Delivered'",
+    "SELECT destination_warehouse, COUNT(*) FROM Purchase_Orders GROUP BY destination_warehouse"
+  ]
+}

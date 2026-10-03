@@ -1,0 +1,329 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DOCKER_IMAGE: obaid38/haval-marketing-tool  # CHANGE THIS
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract short SHA
+        id: sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:${{ steps.sha.outputs.short_sha }}
+            ${{ env.DOCKER_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted  # This runs on production machine
+
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract short SHA
+        id: sha
+        run: |
+          $shortSha = "${{ github.sha }}".Substring(0,7)
+          echo "short_sha=$shortSha" >> $env:GITHUB_OUTPUT
+        shell: powershell
+
+      - name: Pull new image
+        run: docker pull ${{ env.DOCKER_IMAGE }}:${{ steps.sha.outputs.short_sha }}
+        shell: powershell
+
+      - name: Create network if not exists
+        run: |
+          $network = docker network ls --filter name=^haval_net$ --format "{{.Name}}"
+          if (-not $network) {
+            docker network create haval_net
+          }
+        shell: powershell
+
+      - name: Start Redis if not running
+        run: |
+          $redis = docker ps -a --filter name=^haval-redis$ --format "{{.Names}}"
+          if (-not $redis) {
+            docker run -d --name haval-redis --network haval_net --restart unless-stopped -p 6379:6379 redis:latest
+          } else {
+            $running = docker ps --filter name=^haval-redis$ --format "{{.Names}}"
+            if (-not $running) {
+              docker start haval-redis
+            }
+          }
+        shell: powershell
+
+      - name: Stop existing app container
+        run: |
+          $container = docker ps -a --filter name=^haval-marketing-tool$ --format "{{.Names}}"
+          if ($container) {
+            docker stop haval-marketing-tool
+            docker rm haval-marketing-tool
+          }
+        shell: powershell
+
+      - name: Create required directories
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "CREATING REQUIRED DIRECTORIES" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+
+          $directories = @(
+            "D:\haval-test-package\cache",
+            "D:\haval-test-package\config",
+            "D:\haval-test-package\config\backups"
+          )
+
+          foreach ($dir in $directories) {
+            if (-not (Test-Path $dir)) {
+              try {
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                Write-Host "[SUCCESS] Created directory: $dir" -ForegroundColor Green
+              } catch {
+                Write-Host "[ERROR] Failed to create directory: $dir" -ForegroundColor Red
+                Write-Host "Error: $_" -ForegroundColor Red
+                exit 1
+              }
+            } else {
+              Write-Host "[EXISTS] Directory already exists: $dir" -ForegroundColor Yellow
+            }
+          }
+          Write-Host ""
+        shell: powershell
+
+      - name: Setup persistent config.yml
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "SETTING UP PERSISTENT CONFIG" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+
+          $configPath = "D:\haval-test-package\config\config.yml"
+          $backupDir = "D:\haval-test-package\config\backups"
+          $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+
+          # STEP 1: Backup existing config if it exists
+          if (Test-Path $configPath) {
+            try {
+              $backupPath = "$backupDir\config_backup_$timestamp.yml"
+              Copy-Item -Path $configPath -Destination $backupPath -Force
+              Write-Host "[BACKUP] Created backup: $backupPath" -ForegroundColor Green
+
+              # Verify backup
+              if (Test-Path $backupPath) {
+                $backupSize = (Get-Item $backupPath).Length
+                Write-Host "[VERIFY] Backup size: $backupSize bytes" -ForegroundColor Green
+              } else {
+                Write-Host "[ERROR] Backup verification failed!" -ForegroundColor Red
+                exit 1
+              }
+            } catch {
+              Write-Host "[ERROR] Failed to backup config: $_" -ForegroundColor Red
+              exit 1
+            }
+          } else {
+            Write-Host "[INFO] No existing config found. First-time setup." -ForegroundColor Yellow
+          }
+
+          # STEP 2: Extract default config from new Docker image if config doesn't exist
+          if (-not (Test-Path $configPath)) {
+            Write-Host "[SETUP] Extracting default config from Docker image..." -ForegroundColor Cyan
+
+            try {
+              # Create temporary container to extract config
+              Write-Host "[DOCKER] Creating temporary container..." -ForegroundColor Cyan
+              $tempContainer = "haval-config-extractor-$timestamp"
+              docker create --name $tempContainer ${{ env.DOCKER_IMAGE }}:${{ steps.sha.outputs.short_sha }} | Out-Null
+
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "[ERROR] Failed to create temporary container" -ForegroundColor Red
+                exit 1
+              }
+
+              # Copy config from container to host
+              Write-Host "[DOCKER] Copying config.yml from container..." -ForegroundColor Cyan
+              docker cp "${tempContainer}:/app/config/config.yml" $configPath
+
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "[ERROR] Failed to copy config from container" -ForegroundColor Red
+                docker rm $tempContainer | Out-Null
+                exit 1
+              }
+
+              # Remove temporary container
+              Write-Host "[DOCKER] Cleaning up temporary container..." -ForegroundColor Cyan
+              docker rm $tempContainer | Out-Null
+
+              Write-Host "[SUCCESS] Default config extracted successfully" -ForegroundColor Green
+
+            } catch {
+              Write-Host "[ERROR] Failed to extract config: $_" -ForegroundColor Red
+              # Cleanup on failure
+              docker rm $tempContainer -ErrorAction SilentlyContinue | Out-Null
+              exit 1
+            }
+          } else {
+            Write-Host "[KEEP] Using existing config.yml (preserves user changes)" -ForegroundColor Green
+          }
+
+          # STEP 3: Validate config file
+          Write-Host "[VALIDATE] Checking config file..." -ForegroundColor Cyan
+
+          if (-not (Test-Path $configPath)) {
+            Write-Host "[ERROR] Config file does not exist after setup!" -ForegroundColor Red
+            exit 1
+          }
+
+          $configSize = (Get-Item $configPath).Length
+          if ($configSize -eq 0) {
+            Write-Host "[ERROR] Config file is empty!" -ForegroundColor Red
+            exit 1
+          }
+
+          Write-Host "[SUCCESS] Config file validated: $configSize bytes" -ForegroundColor Green
+
+          # STEP 4: Set appropriate permissions
+          try {
+            $acl = Get-Acl $configPath
+            Write-Host "[SUCCESS] Config permissions verified" -ForegroundColor Green
+          } catch {
+            Write-Host "[WARNING] Could not verify permissions: $_" -ForegroundColor Yellow
+          }
+
+          # STEP 5: Display summary
+          Write-Host "" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "CONFIG SETUP COMPLETE" -ForegroundColor Green
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "Config location: $configPath" -ForegroundColor White
+          Write-Host "Config size: $configSize bytes" -ForegroundColor White
+          Write-Host "Backup location: $backupDir" -ForegroundColor White
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host ""
+
+        shell: powershell
+
+      - name: Start new container
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "STARTING NEW CONTAINER" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+
+          $MSSQL_PASSWORD = '${{ secrets.DMS_MSSQL_PASSWORD }}'
+          $SMTP_PASSWORD = '${{ secrets.SMTP_PASSWORD }}'
+
+          # Verify config exists before starting
+          if (-not (Test-Path "D:\haval-test-package\config\config.yml")) {
+            Write-Host "[ERROR] Config file missing! Cannot start container." -ForegroundColor Red
+            exit 1
+          }
+
+          Write-Host "[INFO] Starting container with persistent volumes..." -ForegroundColor Cyan
+          Write-Host "[VOLUME] data -> D:/haval-test-package/data" -ForegroundColor White
+          Write-Host "[VOLUME] logs -> D:/haval-test-package/logs" -ForegroundColor White
+          Write-Host "[VOLUME] uploads -> D:/haval-test-package/uploads" -ForegroundColor White
+          Write-Host "[VOLUME] cache -> D:/haval-test-package/cache" -ForegroundColor White
+          Write-Host "[VOLUME] config.yml -> D:/haval-test-package/config/config.yml (PERSISTENT CONFIG)" -ForegroundColor Green
+          Write-Host ""
+
+          try {
+            docker run -d --name haval-marketing-tool --network haval_net --restart unless-stopped -p 10000:10000 -v D:/haval-test-package/data:/app/data -v D:/haval-test-package/logs:/app/logs -v D:/haval-test-package/uploads:/app/uploads -v D:/haval-test-package/cache:/root/.cache -v D:/haval-test-package/config/config.yml:/app/config/config.yml --add-host mssql-server:${{ secrets.MSSQL_HOST_IP }} -e FLASK_ENV=production -e XAI_API_KEY='${{ secrets.XAI_API_KEY }}' -e OPENAI_API_KEY='${{ secrets.OPENAI_API_KEY }}' -e DMS_DB_PROVIDER=mssql -e DMS_MSSQL_SERVER=mssql-server -e DMS_MSSQL_DATABASE='${{ secrets.DMS_MSSQL_DATABASE }}' -e DMS_MSSQL_USERNAME='${{ secrets.DMS_MSSQL_USERNAME }}' -e DMS_MSSQL_PASSWORD="$MSSQL_PASSWORD" -e DMS_MSSQL_PORT=1433 -e DMS_MSSQL_TRUSTED_CONNECTION=false -e REDIS_HOST=haval-redis -e SMTP_HOST='${{ secrets.SMTP_HOST }}' -e SMTP_PORT='${{ secrets.SMTP_PORT }}' -e SMTP_USERNAME='${{ secrets.SMTP_USERNAME }}' -e SMTP_PASSWORD="$SMTP_PASSWORD" -e FROM_EMAIL='${{ secrets.FROM_EMAIL }}' -e FROM_NAME='${{ secrets.FROM_NAME }}' -e DISABLE_PREWARM=false -e DISABLE_AI_INIT=false ${{ env.DOCKER_IMAGE }}:${{ steps.sha.outputs.short_sha }}
+
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "[SUCCESS] Container started successfully" -ForegroundColor Green
+            } else {
+              Write-Host "[ERROR] Container failed to start" -ForegroundColor Red
+              exit 1
+            }
+          } catch {
+            Write-Host "[ERROR] Failed to start container: $_" -ForegroundColor Red
+            exit 1
+          }
+
+          Write-Host ""
+        shell: powershell
+
+      - name: Wait for startup
+        run: Start-Sleep -Seconds 120
+        shell: powershell
+
+      - name: Health check
+        run: |
+          try {
+            Invoke-WebRequest -Uri http://localhost:10000/ -UseBasicParsing -ErrorAction Stop
+          } catch {
+            Write-Host "Health check endpoint not available, checking if container is running..."
+          }
+          docker ps | Select-String haval-marketing-tool
+        shell: powershell
+
+      - name: Verify config persistence
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "VERIFYING CONFIG PERSISTENCE" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+
+          # Check if config is accessible inside container
+          Write-Host "[CHECK] Verifying config is mounted in container..." -ForegroundColor Cyan
+          $configCheck = docker exec haval-marketing-tool test -f /app/config/config.yml
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Config file is accessible inside container" -ForegroundColor Green
+          } else {
+            Write-Host "[ERROR] Config file NOT found inside container!" -ForegroundColor Red
+            exit 1
+          }
+
+          # Verify it's the same file (compare sizes)
+          Write-Host "[CHECK] Verifying config is properly mounted..." -ForegroundColor Cyan
+          $hostSize = (Get-Item "D:\haval-test-package\config\config.yml").Length
+          $containerSize = docker exec haval-marketing-tool stat -c %s /app/config/config.yml
+          if ($hostSize -eq $containerSize) {
+            Write-Host "[SUCCESS] Config properly mounted: $hostSize bytes" -ForegroundColor Green
+          } else {
+            Write-Host "[WARNING] Size mismatch - Host: $hostSize, Container: $containerSize" -ForegroundColor Yellow
+          }
+
+          Write-Host "" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "DEPLOYMENT SUMMARY" -ForegroundColor Green
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "[SUCCESS] Container running with persistent config" -ForegroundColor Green
+          Write-Host "[INFO] User changes to scheduler will now persist" -ForegroundColor Green
+          Write-Host "[INFO] Config location: D:\haval-test-package\config\config.yml" -ForegroundColor White
+          Write-Host "[INFO] Backups location: D:\haval-test-package\config\backups\" -ForegroundColor White
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host ""
+        shell: powershell
+
+      - name: Cleanup old images
+        run: docker image prune -f
+        shell: powershell

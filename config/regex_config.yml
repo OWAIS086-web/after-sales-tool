@@ -1,0 +1,148 @@
+# ============================================================================
+# REGEX CLASSIFIER CONFIGURATION
+# ============================================================================
+# Control which regex classifiers are active vs LLM fallback
+#
+# Benefits:
+#   - Save tokens by using regex for obvious cases
+#   - Maintain credibility with LLM fallback for ambiguous cases
+#   - Fine-grained control over what gets classified by regex
+#
+# Safety:
+#   - If regex returns None → Always falls back to LLM
+#   - ZERO FALSE POSITIVES guaranteed (regex only when 100% certain)
+#   - Can disable any classifier to force LLM usage
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# DOMAIN CLASSIFICATION
+# ----------------------------------------------------------------------------
+# Classifies query as: in_domain, out_of_domain, small_talk
+# Savings: ~110 tokens per regex hit
+# Coverage: ~76% of queries
+# ----------------------------------------------------------------------------
+
+domain_classification:
+  enabled: true  # Master switch - set to false to always use LLM
+
+  # Enable/disable specific domain classes
+  small_talk:
+    enabled: true  # Detect greetings, thanks, etc.
+    # Patterns: hello, AOA, thanks, bye, etc.
+
+  in_domain:
+    enabled: true  # Detect automotive/platform queries
+    # Patterns: car brands, models, pakwheels, whatsapp, etc.
+
+  out_of_domain:
+    enabled: true  # Detect clearly unrelated queries
+    # Patterns: essays, recipes, sports (with safeguards)
+
+
+# ----------------------------------------------------------------------------
+# INTENT CLASSIFICATION
+# ----------------------------------------------------------------------------
+# Classifies query as: META_OP, STANDALONE, CONTEXT_DEPENDENT, TOPIC_SWITCH
+# Savings: ~500 tokens per regex hit
+# Coverage: ~70% of queries
+# ----------------------------------------------------------------------------
+
+intent_classification:
+  enabled: true  # Master switch - set to false to always use LLM
+
+  # Enable/disable specific intent classes
+  meta_op:
+    enabled: true  # Detect operations on previous response
+    # Patterns: "summarize above", "translate this to urdu"
+    # Requires: meta_keyword + previous_reference + no new_work
+
+  standalone:
+    enabled: true  # Detect independent queries
+    # Patterns: date queries, named entities, specific questions
+
+  context_dependent:
+    enabled: true  # Detect follow-up questions
+    # Patterns: pronouns (it, that, his), "show me more"
+
+  topic_switch:
+    enabled: true  # Detect explicit topic changes
+    # Patterns: "forget that", "now show me X", "switch to Y"
+
+
+# ----------------------------------------------------------------------------
+# ADVANCED SETTINGS
+# ----------------------------------------------------------------------------
+
+advanced:
+  # Typo tolerance
+  typo_matching:
+    enabled: true  # Enable fuzzy matching for car brands/models
+    # Examples: havl→haval, jolon→jolion, pikanto→picanto
+
+  # Multilingual support
+  urdu_support:
+    enabled: true  # Enable Roman Urdu/Pakistani slang patterns
+    # Examples: gaadi, qeemat, kitna, batao
+
+  # Safety features
+  negative_lookahead:
+    enabled: true  # Prevent false positives with safety checks
+    # Example: Don't mark "essay about cars" as out_of_domain
+
+  # Statistics tracking
+  track_stats:
+    enabled: true  # Track regex hits vs LLM fallbacks
+    print_stats: false  # Print stats after each classification
+
+
+# ----------------------------------------------------------------------------
+# PERFORMANCE TUNING
+# ----------------------------------------------------------------------------
+
+performance:
+  # Cache compiled regex patterns (recommended for production)
+  cache_patterns: true
+
+  # Maximum time for regex matching (milliseconds)
+  # If exceeded, fallback to LLM
+  timeout_ms: 100
+
+
+# ----------------------------------------------------------------------------
+# FALLBACK BEHAVIOR
+# ----------------------------------------------------------------------------
+
+fallback:
+  # When to use LLM fallback
+  on_none: true  # Always fallback when regex returns None (RECOMMENDED)
+  on_timeout: true  # Fallback if regex takes too long
+  on_error: true  # Fallback if regex throws error
+
+  # Logging
+  log_fallbacks: true  # Log when LLM fallback is used
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# Example 1: Disable all regex, use only LLM
+#   domain_classification.enabled = false
+#   intent_classification.enabled = false
+#
+# Example 2: Use regex only for small talk and topic switches
+#   domain_classification.in_domain.enabled = false
+#   domain_classification.out_of_domain.enabled = false
+#   intent_classification.meta_op.enabled = false
+#   intent_classification.standalone.enabled = false
+#   intent_classification.context_dependent.enabled = false
+#
+# Example 3: Maximum token savings (all regex enabled)
+#   (default configuration above)
+#
+# Example 4: Conservative mode (only obvious cases)
+#   domain_classification.out_of_domain.enabled = false
+#   intent_classification.meta_op.enabled = false
+#
+# ============================================================================

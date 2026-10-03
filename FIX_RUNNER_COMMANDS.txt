@@ -1,0 +1,45 @@
+==========================================
+GITHUB RUNNER FIX COMMAND
+==========================================
+Copy and paste these commands ONE BY ONE into PowerShell (Run as Administrator)
+
+COMMAND 1: Check if runneR tasks exists
+-------------------
+Get-ScheduledTask -TaskName "GitHubActionsRunner"
+
+
+COMMAND 2: Start the runner tasks
+-------------------
+Start-ScheduledTask -TaskName "GitHubActionsRunner"
+
+
+COMMAND 3: Wait 10 seconds
+-------------------
+Start-Sleep -Seconds 10
+
+
+COMMAND 4: Check if runner process is runningg
+-------------------
+Get-Process -Name "Runner.Listener" -ErrorAction SilentlyContinue
+
+
+COMMAND 5: Check if Docker Desktop is running
+-------------------
+Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
+
+
+COMMAND 6: If Docker is not running, start it
+-------------------
+Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+
+
+COMMAND 7: Check runner logs (last 20 lines)
+-------------------
+Get-Content "C:\Windows\system32\actions-runner\_diag\Runner*.log" -Tail 20
+
+
+COMMAND 8: Check Github connectivity
+-------------------
+Test-NetConnection -ComputerName "github.com" -Port 443 check
+
+

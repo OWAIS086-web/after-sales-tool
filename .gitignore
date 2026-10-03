@@ -1,0 +1,81 @@
+# Environment variables
+.env
+.env.*
+
+# Data directories
+data/
+**/data/
+
+# Local databases
+*.sqlite
+*.sqlite3
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Logs (IMPORTANT)
+logs/
+*.log
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+docs/plantuml.jar
+
+# Finance extras folder (old/archived files)
+ai/finance/extras/
+
+# Cross-platform documentation
+ai/cross_platform/*.md
+
+# Documentation and debug files
+*.md
+!README.md
+!LICENSE.md
+
+# Test files and scripts
+test_*.py
+inspect_*.py
+migrate_*.py
+
+# Output files
+test_output.txt
+*.txt
+!requirements.txt
+!FIX_RUNNER_COMMANDS.txt
+
+# Uploads directory (user uploaded files)
+uploads/
+
+# Backups directory
+backups/
+
+# Experiment files
+experiments/
+
+# Static cache and minified files
+static/**/*.min.js
+static/**/*.min.css
+static/**/cache/

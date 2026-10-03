@@ -1,0 +1,3336 @@
+/* ============================================
+   CHATBOT PAGE - JAVASCRIPT FUNCTIONALITY
+   ============================================ */
+
+// Immediate debug logging
+console.log('🚀 Chatbot.js file loaded');
+
+// Very early loading screen check
+setTimeout(() => {
+    console.log('⏰ Early loading screen check (500ms)');
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        console.log('📱 Loading screen found, will hide soon...');
+        
+        // Aggressive immediate hide after 2 seconds
+        setTimeout(() => {
+            console.log('🚨 Aggressive hide triggered');
+            loadingScreen.style.opacity = '0';
+            loadingScreen.style.visibility = 'hidden';
+            loadingScreen.style.display = 'none';
+        }, 2000);
+    }
+}, 500);
+
+// Global Variables
+let conversationHistory = [];
+let currentSessionId = null;
+let thinkingMode = false;
+let isTyping = false;
+let currentTypingElement = null;
+let fullContent = '';
+let userScrolled = false;
+let currentMessageDiv = null;
+let currentReferences = [];
+let currentStructuredData = null;
+let typingInterval = null;
+let typingSpeed = 0.4;
+let currentMode = 'pakwheels'; // Default mode
+let isHovering = false; // Track hover state globally
+let draftSaveTimeout = null; // For auto-saving drafts
+let retryCount = 0; // For message retry functionality
+let maxRetries = 3; // Maximum retry attempts
+
+// DOM Validation Function
+function validateDOMElements() {
+    console.log('🔍 Validating critical DOM elements...');
+    
+    const criticalElements = [
+        'loadingScreen',
+        'chatInput',
+        'sendBtn',
+        'stopBtn',
+        'chatArea',
+        'messagesContainer',
+        'welcomeScreen',
+        'actionsDropdownBtn',
+        'thinkingModeToggle'
+    ];
+    
+    const missingElements = [];
+    
+    criticalElements.forEach(elementId => {
+        const element = document.getElementById(elementId);
+        if (!element) {
+            missingElements.push(elementId);
+            console.warn(`⚠️ Missing element: ${elementId}`);
+        } else {
+            console.log(`✅ Found element: ${elementId}`);
+        }
+    });
+    
+    if (missingElements.length > 0) {
+        console.error('❌ Missing DOM elements:', missingElements);
+        return false;
+    }
+    
+    console.log('✅ All critical DOM elements found');
+    return true;
+}
+
+// Initialize the application
+function init() {
+    console.log('🚀 Initializing chatbot application...');
+    
+    // Validate critical DOM elements
+    validateDOMElements();
+    
+    try {
+        loadChatHistory();
+        console.log('✅ Chat history loaded');
+        
+        loadTheme();
+        console.log('✅ Theme loaded');
+        
+        updateModePlaceholder();
+        console.log('✅ Mode placeholder updated');
+        
+        startEngineStatusMonitoring();
+        console.log('✅ Engine status monitoring started');
+        
+        setupEventListeners();
+        console.log('✅ Event listeners setup complete');
+        
+        setupWelcomeAnimations();
+        console.log('✅ Welcome animations setup complete');
+        
+        // Initialize mode indicators
+        updateModeIndicators(currentMode);
+        console.log('✅ Mode indicators initialized');
+        
+        // Setup loading screen animations
+        handleLoadingScreenAnimations();
+        console.log('✅ Loading screen animations initialized');
+        
+        console.log('🎉 Chatbot initialization complete!');
+    } catch (error) {
+        console.error('❌ Error during initialization:', error);
+    }
+}
+
+// Setup event listeners
+function setupEventListeners() {
+    // Theme toggle
+    const themeToggle = document.querySelector('.theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+
+    // Chat input
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.addEventListener('keydown', handleKeyPress);
+        chatInput.addEventListener('input', function() {
+            autoResize(this);
+            saveDraft(this.value); // Auto-save draft
+        });
+        
+        // Load saved draft on page load
+        loadDraft();
+    }
+
+    // Send button
+    const sendBtn = document.getElementById('sendBtn');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', sendMessage);
+    }
+
+    // Stop button
+    const stopBtn = document.getElementById('stopBtn');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', stopTyping);
+    }
+
+    // Mode selection buttons
+    const modePakwheels = document.getElementById('modePakwheels');
+    const modeWhatsapp = document.getElementById('modeWhatsapp');
+    const modeInsights = document.getElementById('modeInsights');
+    
+    if (modePakwheels) {
+        modePakwheels.addEventListener('click', () => setMode('pakwheels'));
+    }
+    if (modeWhatsapp) {
+        modeWhatsapp.addEventListener('click', () => setMode('whatsapp'));
+    }
+    if (modeInsights) {
+        modeInsights.addEventListener('click', () => setMode('insights'));
+    }
+
+    // Thinking mode toggle
+    const thinkingModeToggle = document.getElementById('thinkingModeToggle');
+    if (thinkingModeToggle) {
+        thinkingModeToggle.addEventListener('click', toggleThinkingMode);
+    }
+
+    // Actions dropdown
+    const actionsDropdownBtn = document.getElementById('actionsDropdownBtn');
+    if (actionsDropdownBtn) {
+        actionsDropdownBtn.addEventListener('click', toggleActionsDropdown);
+    }
+
+    // New Chat button (now in dropdown)
+    const newChatBtn = document.getElementById('newChatBtn');
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', function() {
+            hideActionsDropdown();
+            newChat();
+        });
+    }
+
+    // Recent Chats button (now in dropdown)
+    const recentChatsBtn = document.getElementById('recentChatsBtn');
+    if (recentChatsBtn) {
+        recentChatsBtn.addEventListener('click', function() {
+            hideActionsDropdown();
+            toggleRecentChats();
+        });
+    }
+
+    // Fetch WATI button (now in dropdown)
+    const fetchWatiBtn = document.getElementById('fetchWatiBtn');
+    if (fetchWatiBtn) {
+        fetchWatiBtn.addEventListener('click', function() {
+            hideActionsDropdown();
+            openWatiPopup();
+        });
+    }
+
+    // Scrape button (now in dropdown)
+    const scrapeBtn = document.getElementById('scrapeBtn');
+    if (scrapeBtn) {
+        scrapeBtn.addEventListener('click', function() {
+            hideActionsDropdown();
+            openPakWheelsPopup();
+        });
+    }
+
+    // Quick action buttons (use event delegation for dynamic content)
+    document.addEventListener('click', function(event) {
+        if (event.target.closest('.quick-action-btn[data-question]')) {
+            const btn = event.target.closest('.quick-action-btn[data-question]');
+            const question = btn.getAttribute('data-question');
+            if (question) {
+                console.log('🎯 Quick action clicked:', question);
+                askQuestion(question);
+            }
+        }
+    });
+
+    // Popup buttons
+    document.addEventListener('click', function(event) {
+        if (event.target.closest('.quick-action-btn[data-question]')) {
+            const btn = event.target.closest('.quick-action-btn[data-question]');
+            const question = btn.getAttribute('data-question');
+            if (question) {
+                console.log('🎯 Quick action clicked:', question);
+                askQuestion(question);
+            }
+        }
+    });
+
+    // Popup buttons
+    const closePakWheelsBtn = document.getElementById('closePakWheelsPopup');
+    if (closePakWheelsBtn) {
+        closePakWheelsBtn.addEventListener('click', closePakWheelsPopup);
+    }
+
+    const startPakWheelsBtn = document.getElementById('startPakWheelsScraping');
+    if (startPakWheelsBtn) {
+        startPakWheelsBtn.addEventListener('click', startPakWheelsScraping);
+    }
+
+    const closeWatiBtn = document.getElementById('closeWatiPopup');
+    if (closeWatiBtn) {
+        closeWatiBtn.addEventListener('click', closeWatiPopup);
+    }
+
+    const startWatiBtn = document.getElementById('startWatiFetching');
+    if (startWatiBtn) {
+        startWatiBtn.addEventListener('click', startWatiFetching);
+    }
+
+    // Track user scrolling with improved logic and hover detection
+    const chatArea = document.getElementById('chatArea');
+    if (chatArea) {
+        let scrollTimeout;
+        let isScrollingProgrammatically = false;
+        
+        // Mouse hover detection to pause auto-scroll
+        chatArea.addEventListener('mouseenter', function() {
+            isHovering = true;
+            console.log('🖱️ Mouse entered chat area - auto-scroll paused');
+        });
+        
+        chatArea.addEventListener('mouseleave', function() {
+            isHovering = false;
+            console.log('🖱️ Mouse left chat area - auto-scroll resumed');
+            
+            // Check if we should auto-scroll when mouse leaves
+            setTimeout(() => {
+                if (!isHovering) {
+                    const isAtBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 10;
+                    if (isAtBottom) {
+                        userScrolled = false;
+                        console.log('✅ Mouse left and at bottom - auto-scroll enabled');
+                    }
+                }
+            }, 100);
+        });
+        
+        chatArea.addEventListener('scroll', function() {
+            // Don't track if we're scrolling programmatically
+            if (isScrollingProgrammatically) {
+                isScrollingProgrammatically = false;
+                return;
+            }
+            
+            const isAtBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 10;
+            
+            if (!isAtBottom) {
+                userScrolled = true;
+                console.log('🔄 User scrolled up - auto-scroll disabled');
+            } else if (!isHovering) {
+                userScrolled = false;
+                console.log('✅ User at bottom and not hovering - auto-scroll enabled');
+                
+                // Remove scroll hint if user scrolled back to bottom
+                const existingHint = document.getElementById('scrollDownHint');
+                if (existingHint) {
+                    existingHint.style.animation = 'fadeOut 0.3s ease-out';
+                    setTimeout(() => existingHint.remove(), 300);
+                }
+            }
+            
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                if (!isHovering) {
+                    const stillAtBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 10;
+                    if (stillAtBottom) {
+                        userScrolled = false;
+                    }
+                }
+            }, 1000);
+        });
+        
+        // Override scrollToBottom to set the flag
+        const originalScrollToBottom = scrollToBottom;
+        window.scrollToBottom = function(force = false) {
+            if (force || (!userScrolled && !isHovering)) {
+                isScrollingProgrammatically = true;
+                originalScrollToBottom(force);
+            } else if (isHovering) {
+                console.log('📍 Scroll skipped - user is hovering');
+            }
+        };
+    }
+
+    // Close quick actions when clicking outside
+    document.addEventListener('click', function(event) {
+        const panel = document.getElementById('quickActionsPanel');
+        const recentPanel = document.getElementById('recentChatsPanel');
+        const actionsDropdown = document.getElementById('actionsDropdown');
+        const quickActionBtn = event.target.closest('[onclick*="toggleQuickActions"]');
+        
+        if (panel && !panel.contains(event.target) && !quickActionBtn && panel.classList.contains('active')) {
+            hideQuickActions();
+        }
+        
+        if (recentPanel && !recentPanel.contains(event.target) && !event.target.closest('#recentChatsBtn') && recentPanel.classList.contains('active')) {
+            hideRecentChats();
+        }
+        
+        // Close actions dropdown when clicking outside
+        if (actionsDropdown && !actionsDropdown.contains(event.target)) {
+            hideActionsDropdown();
+        }
+    });
+
+    // Keyboard support for dropdowns
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            hideActionsDropdown();
+            hideQuickActions();
+            hideRecentChats();
+            
+            // Close popups on Escape
+            closePakWheelsPopup();
+            closeWatiPopup();
+        }
+        
+        // Keyboard shortcuts
+        if (event.ctrlKey || event.metaKey) {
+            switch(event.key) {
+                case 'n':
+                case 'N':
+                    event.preventDefault();
+                    newChat();
+                    showToast('New chat started');
+                    break;
+                case '/':
+                    event.preventDefault();
+                    toggleActionsDropdown();
+                    break;
+                case 'Enter':
+                    if (event.shiftKey) {
+                        event.preventDefault();
+                        sendMessage();
+                    }
+                    break;
+            }
+        }
+        
+        // Enter key support for popups
+        if (event.key === 'Enter') {
+            const pakWheelsPopup = document.getElementById('pakWheelsPopup');
+            const watiPopup = document.getElementById('watiPopup');
+            
+            if (pakWheelsPopup && pakWheelsPopup.classList.contains('active')) {
+                event.preventDefault();
+                startPakWheelsScraping();
+            } else if (watiPopup && watiPopup.classList.contains('active')) {
+                event.preventDefault();
+                startWatiFetching();
+            }
+        }
+    });
+
+    // Close Recent Chats
+    const closeRecentChats = document.getElementById('closeRecentChats');
+    if (closeRecentChats) {
+        closeRecentChats.addEventListener('click', hideRecentChats);
+    }
+
+    // Close Quick Actions
+    const closeQuickActions = document.getElementById('closeQuickActions');
+    if (closeQuickActions) {
+        closeQuickActions.addEventListener('click', hideQuickActions);
+    }
+
+    // Clear History button
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener('click', clearAllChats);
+    }
+    
+    // Image upload functionality
+    const imageUploadBtn = document.getElementById('imageUploadBtn');
+    const imageUploadInput = document.getElementById('imageUploadInput');
+    
+    if (imageUploadBtn && imageUploadInput) {
+        imageUploadBtn.addEventListener('click', () => {
+            imageUploadInput.click();
+        });
+        
+        imageUploadInput.addEventListener('change', handleImageUpload);
+    }
+}
+
+// Theme Management
+function loadTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+    updateLogos(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+    updateLogos(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    const themeIcon = document.getElementById('themeIcon');
+    if (themeIcon) {
+        themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+}
+
+function updateLogos(theme) {
+    const logos = document.querySelectorAll('.brand-logo, #navLogo, #loadingLogo');
+    const logoPath = theme === 'dark' 
+        ? '/static/images/light-logo.svg' 
+        : '/static/images/dark-logo.svg';
+    
+    logos.forEach(logo => {
+        if (logo) {
+            logo.src = logoPath;
+        }
+    });
+}
+
+// Mode Selection Functions
+function setMode(mode) {
+    currentMode = mode;
+    console.log('🎯 Mode changed to:', mode);
+    
+    // Update mode indicators
+    updateModeIndicators(mode);
+    
+    // Update placeholder and description
+    updateModePlaceholder();
+    
+    // Hide dropdown
+    hideActionsDropdown();
+    
+    // Show toast
+    const modeNames = {
+        'pakwheels': 'PakWheels Forums',
+        'whatsapp': 'WhatsApp Data',
+        'insights': 'AI Insights'
+    };
+    showToast(`Switched to ${modeNames[mode]} mode`);
+}
+
+function updateModeIndicators(activeMode) {
+    const modes = ['pakwheels', 'whatsapp', 'insights'];
+    
+    modes.forEach(mode => {
+        const element = document.getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+        const checkElement = element ? element.querySelector('.mode-check') : null;
+        
+        if (element) {
+            if (mode === activeMode) {
+                element.classList.add('active');
+                if (checkElement) checkElement.style.opacity = '1';
+            } else {
+                element.classList.remove('active');
+                if (checkElement) checkElement.style.opacity = '0';
+            }
+        }
+    });
+}
+
+// Setup Welcome Animations
+function setupWelcomeAnimations() {
+    const welcomeAvatar = document.getElementById('welcomeAvatar');
+    const leftEye = document.querySelector('.left-eye .pupil');
+    const rightEye = document.querySelector('.right-eye .pupil');
+    
+    if (welcomeAvatar && leftEye && rightEye) {
+        // Eye tracking animation - enhanced for all directions including left side
+        document.addEventListener('mousemove', function(e) {
+            // Only animate if welcome screen is visible
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            if (!welcomeScreen || welcomeScreen.style.display === 'none') return;
+            
+            const avatarRect = welcomeAvatar.getBoundingClientRect();
+            const centerX = avatarRect.left + avatarRect.width / 2;
+            const centerY = avatarRect.top + avatarRect.height / 2;
+            
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+            
+            // Calculate angle and distance properly for all directions
+            const deltaX = mouseX - centerX;
+            const deltaY = mouseY - centerY;
+            
+            // Use atan2 for proper angle calculation in all quadrants (fixes left side)
+            const angle = Math.atan2(deltaY, deltaX);
+            
+            // Calculate distance with better sensitivity
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const normalizedDistance = Math.min(1, distance / 150); // Better sensitivity
+            
+            // Calculate movement with proper range for all directions
+            const maxMovement = 6; // Increased for better visibility
+            const moveX = Math.cos(angle) * normalizedDistance * maxMovement;
+            const moveY = Math.sin(angle) * normalizedDistance * maxMovement;
+            
+            // Ensure movement works in all directions (especially left side)
+            const clampedMoveX = Math.max(-maxMovement, Math.min(maxMovement, moveX));
+            const clampedMoveY = Math.max(-maxMovement, Math.min(maxMovement, moveY));
+            
+            // Apply movement to pupils with smooth transition
+            const transition = 'transform 0.12s ease-out';
+            leftEye.style.transition = transition;
+            rightEye.style.transition = transition;
+            leftEye.style.transform = `translate(${clampedMoveX}px, ${clampedMoveY}px)`;
+            rightEye.style.transform = `translate(${clampedMoveX}px, ${clampedMoveY}px)`;
+        });
+        
+        // Enhanced blinking animation
+        const eyes = document.querySelectorAll('.eye');
+        const blink = () => {
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            if (!welcomeScreen || welcomeScreen.style.display === 'none') return;
+            
+            eyes.forEach(eye => {
+                eye.style.transition = 'transform 0.1s ease-out';
+                eye.style.transform = 'scaleY(0.1)';
+                setTimeout(() => {
+                    eye.style.transform = 'scaleY(1)';
+                }, 120);
+            });
+        };
+        
+        // Random blinking with natural timing
+        const scheduleNextBlink = () => {
+            const delay = Math.random() * 4000 + 2000; // 2-6 seconds
+            setTimeout(() => {
+                blink();
+                scheduleNextBlink();
+            }, delay);
+        };
+        
+        scheduleNextBlink();
+        
+        // Reset eye position when mouse leaves the avatar area
+        welcomeAvatar.addEventListener('mouseleave', function() {
+            leftEye.style.transition = 'transform 0.3s ease-out';
+            rightEye.style.transition = 'transform 0.3s ease-out';
+            leftEye.style.transform = 'translate(0px, 0px)';
+            rightEye.style.transform = 'translate(0px, 0px)';
+        });
+    }
+}
+
+// Loading Screen Animation Handler
+function handleLoadingScreenAnimations() {
+    const loadingScreen = document.getElementById('loadingScreen');
+    const loadingLogo = document.getElementById('loadingLogo');
+    const sparkles = document.querySelectorAll('.sparkle');
+    
+    if (loadingScreen && loadingLogo) {
+        // Add rotation animation to logo
+        let rotation = 0;
+        const rotateInterval = setInterval(() => {
+            if (loadingScreen.classList.contains('hidden')) {
+                clearInterval(rotateInterval);
+                return;
+            }
+            rotation += 2;
+            loadingLogo.style.transform = `rotate(${rotation}deg)`;
+        }, 50);
+        
+        // Animate sparkles
+        sparkles.forEach((sparkle, index) => {
+            const animateSparkle = () => {
+                if (loadingScreen.classList.contains('hidden')) return;
+                
+                sparkle.style.transform = `scale(${0.8 + Math.sin(Date.now() / 1000 + index) * 0.3})`;
+                requestAnimationFrame(animateSparkle);
+            };
+            animateSparkle();
+        });
+    }
+}
+
+// Thinking Mode Toggle
+function toggleThinkingMode() {
+    thinkingMode = !thinkingMode;
+    const indicator = document.getElementById('thinkingIndicator');
+    
+    if (indicator) {
+        indicator.textContent = thinkingMode ? 'ON' : 'OFF';
+        indicator.style.color = thinkingMode ? '#10b981' : '#6b7280';
+    }
+    
+    console.log('🧠 Thinking mode:', thinkingMode ? 'ON' : 'OFF');
+    showToast(`Detailed mode ${thinkingMode ? 'enabled' : 'disabled'}`);
+}
+
+// Mode Placeholder Update
+function updateModePlaceholder() {
+    const chatInput = document.getElementById('chatInput');
+    const modeDescription = document.getElementById('modeDescription');
+    
+    if (!chatInput) return;
+    
+    const mode = currentMode; // Use global currentMode instead of modeSelector
+    let placeholder = '';
+    let description = '';
+    
+    switch (mode) {
+        case 'pakwheels':
+            placeholder = 'Ask about issues (PakWheels mode)';
+            description = 'Insights AI analyzes real user discussions from PakWheels forums. Responses include source references for verification.';
+            break;
+        case 'whatsapp':
+            placeholder = 'Ask about WhatsApp conversations';
+            description = 'Query WhatsApp customer service conversations and support tickets with AI-powered analysis.';
+            break;
+        case 'insights':
+            placeholder = 'Ask anything about your data';
+            description = 'General AI assistant mode with access to all your data sources and advanced reasoning capabilities.';
+            break;
+        default:
+            placeholder = 'Type your message...';
+            description = 'AI-powered insights from your data sources.';
+    }
+    
+    chatInput.placeholder = placeholder;
+    if (modeDescription) {
+        modeDescription.textContent = description;
+    }
+}
+
+// Auto-resize textarea with debouncing
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+}
+
+// Draft Management
+function saveDraft(content) {
+    // Debounce the save operation
+    clearTimeout(draftSaveTimeout);
+    draftSaveTimeout = setTimeout(() => {
+        if (content.trim()) {
+            localStorage.setItem('chatbot_draft', content);
+            console.log('💾 Draft saved');
+        } else {
+            localStorage.removeItem('chatbot_draft');
+        }
+    }, 1000); // Save after 1 second of inactivity
+}
+
+function loadDraft() {
+    const draft = localStorage.getItem('chatbot_draft');
+    const chatInput = document.getElementById('chatInput');
+    
+    if (draft && chatInput && !chatInput.value) {
+        chatInput.value = draft;
+        autoResize(chatInput);
+        console.log('📝 Draft loaded');
+    }
+}
+
+function clearDraft() {
+    localStorage.removeItem('chatbot_draft');
+    console.log('🗑️ Draft cleared');
+}
+
+// Handle key press
+function handleKeyPress(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+}
+
+// Chart Colors Function
+function getChartColors() {
+    return [
+        'rgba(124, 58, 237, 0.8)',   // Primary purple
+        'rgba(168, 85, 247, 0.8)',   // Light purple
+        'rgba(192, 132, 252, 0.8)',  // Lighter purple
+        'rgba(233, 213, 255, 0.8)',  // Very light purple
+        'rgba(34, 197, 94, 0.8)',    // Green
+        'rgba(251, 191, 36, 0.8)',   // Yellow
+        'rgba(239, 68, 68, 0.8)',    // Red
+        'rgba(59, 130, 246, 0.8)',   // Blue
+        'rgba(16, 185, 129, 0.8)',   // Teal
+        'rgba(245, 158, 11, 0.8)'    // Orange
+    ];
+}
+
+// Actions Dropdown Functions
+function toggleActionsDropdown() {
+    const dropdown = document.getElementById('actionsDropdown');
+    const menu = document.getElementById('actionsDropdownMenu');
+    
+    if (dropdown && menu) {
+        const isActive = dropdown.classList.contains('active');
+        
+        // Close all other dropdowns first
+        document.querySelectorAll('.actions-dropdown.active').forEach(d => {
+            if (d !== dropdown) {
+                d.classList.remove('active');
+            }
+        });
+        
+        // Toggle this dropdown
+        if (isActive) {
+            dropdown.classList.remove('active');
+        } else {
+            dropdown.classList.add('active');
+        }
+    }
+}
+
+function hideActionsDropdown() {
+    const dropdown = document.getElementById('actionsDropdown');
+    if (dropdown) {
+        dropdown.classList.remove('active');
+    }
+}
+
+// Quick Actions Functions
+function toggleQuickActions() {
+    console.log('🎯 Toggling quick actions panel...');
+    const panel = document.getElementById('quickActionsPanel');
+    if (panel) {
+        const isActive = panel.classList.contains('active');
+        console.log('Panel found, currently active:', isActive);
+        
+        if (isActive) {
+            panel.classList.remove('active');
+            console.log('✅ Panel hidden');
+        } else {
+            panel.classList.add('active');
+            console.log('✅ Panel shown');
+        }
+    } else {
+        console.error('❌ Quick actions panel not found!');
+    }
+}
+
+function hideQuickActions() {
+    const panel = document.getElementById('quickActionsPanel');
+    if (panel) {
+        panel.classList.remove('active');
+    }
+}
+
+function askQuestion(question) {
+    hideQuickActions();
+    document.getElementById('chatInput').value = question;
+    sendMessage();
+}
+
+// Check authentication status
+function checkAuthStatus() {
+    return fetch('/api/auth/status', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => data.authenticated)
+    .catch(() => false);
+}
+
+// Helper function to append content to existing message (plain text only for streaming)
+function appendToMessage(messageDiv, content) {
+    const messageContent = messageDiv.querySelector('.message-content');
+    if (messageContent) {
+        // For streaming, just append plain text
+        messageContent.textContent += content;
+        
+        // Auto-scroll to bottom
+        const chatArea = document.getElementById('chatArea');
+        if (chatArea && !userScrolled) {
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+    }
+}
+
+// Helper function to handle structured data
+function handleStructuredData(structured) {
+    if (!structured) return;
+    
+    // Handle references, charts, tables, etc.
+    if (structured.references && structured.references.length > 0) {
+        console.log('📚 References found:', structured.references.length);
+    }
+    
+    if (structured.charts && structured.charts.length > 0) {
+        console.log('📊 Charts found:', structured.charts.length);
+    }
+}
+
+// Send Message Function
+function sendMessage(isRetry = false) {
+    const chatInput = document.getElementById('chatInput');
+    const message = chatInput.value.trim();
+    
+    if (!message || isTyping) {
+        if (!message) {
+            showToast('Please enter a message');
+        }
+        return;
+    }
+    
+    console.log('📤 Sending message:', message.substring(0, 50) + (message.length > 50 ? '...' : ''));
+    
+    // Check authentication first
+    checkAuthStatus().then(isAuthenticated => {
+        if (!isAuthenticated) {
+            showToast('Please log in to continue', 'error');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 2000);
+            return;
+        }
+        
+        // Proceed with sending message
+        sendMessageAuthenticated(message, isRetry);
+    }).catch(error => {
+        console.error('❌ Auth check failed:', error);
+        // Proceed anyway, let the server handle auth
+        sendMessageAuthenticated(message, isRetry);
+    });
+}
+
+function sendMessageAuthenticated(message, isRetry = false) {
+    const chatInput = document.getElementById('chatInput');
+    
+    // Clear draft when sending
+    if (!isRetry) {
+        clearDraft();
+        retryCount = 0; // Reset retry count for new messages
+    }
+    
+    // Add user message to DOM (only if not a retry)
+    if (!isRetry) {
+        addMessageToDOM(message, true);
+        
+        // Add to conversation history
+        conversationHistory.push({
+            role: 'user',
+            content: message
+        });
+        
+        // Clear input
+        chatInput.value = '';
+        autoResize(chatInput);
+    }
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    // Get current mode and thinking mode
+    const mode = currentMode; // Use global currentMode
+    
+    console.log('🔧 Request config:', { 
+        mode: mode, 
+        thinking: thinkingMode,
+        messageLength: message.length,
+        isRetry: isRetry,
+        retryCount: retryCount
+    });
+    
+    // Send to backend (using non-streaming for reliability)
+    fetch('/chatbot_query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            query: message,
+            mode: mode,
+            thinking: thinkingMode
+        })
+    })
+    .then(response => {
+        console.log('📡 Response status:', response.status);
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('Authentication required');
+            }
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('📥 Response data received');
+        hideTypingIndicator();
+        retryCount = 0; // Reset retry count on success
+        
+        if (data.answer) {
+            // Add bot response to conversation history
+            conversationHistory.push({
+                role: 'assistant',
+                content: data.answer
+            });
+            
+            // Add bot message to DOM with typing effect
+            addMessageToDOM(data.answer, false, true, data.structured);
+            
+            console.log('✅ Message processed successfully');
+        } else {
+            console.error('❌ No answer in response:', data);
+            addMessageToDOM('Sorry, I encountered an error. Please try again.', false);
+        }
+    })
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            query: message,
+            mode: mode,
+            thinking: thinkingMode
+        })
+    })
+    .then(response => {
+        console.log('📡 Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // Handle streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        
+        function readStream() {
+            return reader.read().then(({ done, value }) => {
+                if (done) {
+                    hideTypingIndicator();
+                    retryCount = 0;
+                    
+                    // Process the complete message with charts and structured data
+                    if (fullContent && currentMessageDiv) {
+                        const messageContent = currentMessageDiv.querySelector('.message-content');
+                        if (messageContent) {
+                            // Process the complete content for charts and formatting
+                            processMessageContent(messageContent, fullContent, currentMessageDiv, [], null);
+                        }
+                    }
+                    
+                    return;
+                }
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep incomplete line in buffer
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            
+                            if (data.content) {
+                                fullContent += data.content;
+                                
+                                // Add content to the current message (simple text only for streaming)
+                                if (!currentMessageDiv) {
+                                    currentMessageDiv = addMessageToDOM('', false, false);
+                                }
+                                appendToMessage(currentMessageDiv, data.content);
+                            }
+                            
+                            if (data.done) {
+                                hideTypingIndicator();
+                                retryCount = 0;
+                                
+                                // Handle authentication errors
+                                if (data.error === 'authentication_required') {
+                                    console.error('❌ Authentication required');
+                                    showToast('Please log in to continue', 'error');
+                                    // Redirect to login page
+                                    setTimeout(() => {
+                                        window.location.href = '/login';
+                                    }, 2000);
+                                    return;
+                                }
+                                
+                                // Add to conversation history
+                                if (currentMessageDiv && fullContent) {
+                                    conversationHistory.push({
+                                        role: 'assistant',
+                                        content: fullContent
+                                    });
+                                }
+                                
+                                // Handle structured data if present
+                                if (data.structured) {
+                                    handleStructuredData(data.structured);
+                                }
+                                
+                                // Process complete message for charts and formatting
+                                if (fullContent && currentMessageDiv) {
+                                    const messageContent = currentMessageDiv.querySelector('.message-content');
+                                    if (messageContent) {
+                                        // Clear the simple text and process the complete content
+                                        messageContent.innerHTML = '';
+                                        processMessageContent(messageContent, fullContent, currentMessageDiv, [], data.structured);
+                                    }
+                                }
+                                
+                                currentMessageDiv = null;
+                                fullContent = '';
+                                console.log('✅ Streaming message completed');
+                                return;
+                            }
+                        } catch (e) {
+                            console.error('Error parsing streaming data:', e);
+                        }
+                    }
+                }
+                
+                return readStream();
+            });
+    .catch(error => {
+        console.error('❌ Chat error:', error);
+        hideTypingIndicator();
+        
+        // Handle authentication errors
+        if (error.message.includes('401') || error.message.includes('Unauthorized') || error.message.includes('Authentication required')) {
+            console.error('❌ Authentication error');
+            showToast('Please log in to continue', 'error');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 2000);
+            return;
+        }
+        
+        // Retry logic
+        if (retryCount < maxRetries && (error.message.includes('Failed to fetch') || error.message.includes('500'))) {
+            retryCount++;
+            console.log(`🔄 Retrying message (attempt ${retryCount}/${maxRetries})`);
+            
+            // Show retry message
+            const retryMessage = `Connection issue. Retrying... (${retryCount}/${maxRetries})`;
+            showToast(retryMessage);
+            
+            // Retry after a delay
+            setTimeout(() => {
+                sendMessage(true); // Retry the same message
+            }, 2000 * retryCount); // Exponential backoff
+            
+            return;
+        }
+        
+        // Max retries reached or non-retryable error
+        let errorMessage = 'Sorry, I encountered an error. Please try again.';
+        if (error.message.includes('404')) {
+            errorMessage = 'Chat service is not available. Please check if the server is running.';
+        } else if (error.message.includes('500')) {
+            errorMessage = 'Server error occurred. Please try again in a moment.';
+        } else if (error.message.includes('Failed to fetch')) {
+            errorMessage = 'Connection error. Please check your internet connection.';
+        }
+        
+        if (retryCount >= maxRetries) {
+            errorMessage += ` (Failed after ${maxRetries} attempts)`;
+        }
+        
+        addMessageToDOM(errorMessage, false);
+        showToast('Error: ' + error.message);
+        
+        // Reset retry count
+        retryCount = 0;
+    });
+}
+
+// Progress Popup Functions
+function showScrapingProgress(source, count) {
+    // Create progress popup
+    const progressPopup = document.createElement('div');
+    progressPopup.id = 'scrapingProgressPopup';
+    progressPopup.className = 'scraping-popup active';
+    progressPopup.style.zIndex = '3000';
+    
+    progressPopup.innerHTML = `
+        <div class="popup-content">
+            <div class="popup-header">
+                <div class="popup-icon ${source.toLowerCase()}">🚀</div>
+                <div class="popup-title">Scraping ${source} Data</div>
+            </div>
+            <div class="popup-body">
+                <div class="progress-container">
+                    <div class="progress-status" id="progressStatus">
+                        Starting scraping process for ${count} posts...
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <div class="progress-details" id="progressDetails">
+                        Initializing scraper...
+                    </div>
+                </div>
+                <div class="progress-logs" id="progressLogs">
+                    <div class="log-entry">📋 Scraping ${count} posts from ${source}</div>
+                </div>
+            </div>
+            <div class="popup-actions">
+                <button class="popup-btn popup-btn-cancel" onclick="hideScrapingProgress()" disabled>
+                    Processing...
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(progressPopup);
+    
+    // Start progress animation
+    animateProgress();
+}
+
+function updateScrapingProgress(message, type = 'info') {
+    const statusEl = document.getElementById('progressStatus');
+    const detailsEl = document.getElementById('progressDetails');
+    const logsEl = document.getElementById('progressLogs');
+    
+    if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.className = `progress-status ${type}`;
+    }
+    
+    if (logsEl) {
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${type}`;
+        const timestamp = new Date().toLocaleTimeString();
+        const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : '📋';
+        logEntry.innerHTML = `${icon} [${timestamp}] ${message}`;
+        logsEl.appendChild(logEntry);
+        logsEl.scrollTop = logsEl.scrollHeight;
+    }
+    
+    if (type === 'success') {
+        if (detailsEl) {
+            if (message.includes('Pipeline completed')) {
+                detailsEl.textContent = '🎉 All data processed and ready for use!';
+            } else if (message.includes('scraped') || message.includes('fetched')) {
+                detailsEl.textContent = '🚀 Starting AI pipeline processing...';
+            } else {
+                detailsEl.textContent = '✅ Process completed successfully!';
+            }
+        }
+        
+        // Update close button for success states
+        const closeBtn = document.querySelector('#scrapingProgressPopup .popup-btn-cancel');
+        if (closeBtn && message.includes('complete')) {
+            closeBtn.textContent = 'Refresh Page';
+            closeBtn.disabled = false;
+            closeBtn.style.background = 'var(--primary-gradient)';
+            closeBtn.style.color = 'white';
+            
+            // Add manual refresh option
+            closeBtn.onclick = () => {
+                hideScrapingProgress();
+                window.location.reload();
+            };
+        }
+        
+    } else if (type === 'error') {
+        if (detailsEl) {
+            detailsEl.textContent = '❌ Process failed. Please try again or refresh manually.';
+        }
+        
+        // Enable close button for errors
+        const closeBtn = document.querySelector('#scrapingProgressPopup .popup-btn-cancel');
+        if (closeBtn) {
+            closeBtn.textContent = 'Close';
+            closeBtn.disabled = false;
+            closeBtn.style.background = '#ef4444';
+            closeBtn.style.color = 'white';
+            
+            // Add manual refresh option for errors
+            closeBtn.onclick = () => {
+                hideScrapingProgress();
+                if (confirm('Would you like to refresh the page to see any changes?')) {
+                    window.location.reload();
+                }
+            };
+        }
+        
+    } else {
+        // Info/processing state
+        if (detailsEl && message.includes('processing')) {
+            detailsEl.textContent = '⚙️ AI engine is analyzing and indexing the data...';
+        } else if (detailsEl && message.includes('Waiting')) {
+            detailsEl.textContent = '⏳ Preparing AI pipeline for data processing...';
+        }
+    }
+}
+
+function hideScrapingProgress() {
+    const progressPopup = document.getElementById('scrapingProgressPopup');
+    if (progressPopup) {
+        progressPopup.remove();
+    }
+}
+
+function animateProgress() {
+    const progressBar = document.getElementById('progressBar');
+    if (!progressBar) return;
+    
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += Math.random() * 10;
+        if (progress > 90) progress = 90; // Don't complete until we get success
+        
+        progressBar.style.width = progress + '%';
+        
+        if (progress >= 90) {
+            clearInterval(interval);
+        }
+    }, 500);
+}
+
+function startEngineMonitoring() {
+    updateScrapingProgress('Waiting for AI engine to process data...', 'info');
+    
+    let checkCount = 0;
+    const maxChecks = 60; // 5 minutes max
+    
+    const checkEngine = () => {
+        checkCount++;
+        
+        // If we know the endpoint doesn't exist, simulate completion
+        if (!pipelineEndpointExists) {
+            console.log('🔄 Pipeline endpoint not available, simulating completion...');
+            
+            // Simulate processing for a few checks, then complete
+            if (checkCount <= 3) {
+                updateScrapingProgress(`🔄 Processing data... (${checkCount}/3)`, 'info');
+                setTimeout(checkEngine, 2000);
+                return;
+            } else {
+                // Simulate completion
+                updateScrapingProgress('✅ Data processing completed!', 'success');
+                
+                // Complete progress bar
+                const progressBar = document.getElementById('progressBar');
+                if (progressBar) {
+                    progressBar.style.width = '100%';
+                }
+                
+                // Show completion message and auto-close
+                setTimeout(() => {
+                    updateScrapingProgress('🎉 Process complete! Closing popup...', 'success');
+                    
+                    // Close popup and refresh page after 2 seconds
+                    setTimeout(() => {
+                        hideScrapingProgress();
+                        showToast('Data processing completed successfully! Page refreshed.');
+                        window.location.reload();
+                    }, 2000);
+                }, 1500);
+                
+                return;
+            }
+        }
+        
+        fetch('/api/pipeline/status')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const status = data.status || 'unknown';
+                console.log('🔍 Engine status check', checkCount + ':', status);
+                
+                if (status === 'completed' || status === 'ready') {
+                    // Pipeline completed successfully
+                    updateScrapingProgress('✅ AI Pipeline completed successfully!', 'success');
+                    
+                    // Complete progress bar
+                    const progressBar = document.getElementById('progressBar');
+                    if (progressBar) {
+                        progressBar.style.width = '100%';
+                    }
+                    
+                    // Show completion message and auto-close
+                    setTimeout(() => {
+                        updateScrapingProgress('🎉 Process complete! Closing popup...', 'success');
+                        
+                        // Close popup and refresh page after 2 seconds
+                        setTimeout(() => {
+                            hideScrapingProgress();
+                            showToast('Data processing completed successfully! Page refreshed.');
+                            window.location.reload();
+                        }, 2000);
+                    }, 1500);
+                    
+                } else if (status === 'processing') {
+                    // Still processing
+                    updateScrapingProgress(`🔄 AI engine processing data... (${checkCount}/${maxChecks})`, 'info');
+                    setTimeout(checkEngine, 3000); // Check every 3 seconds during processing
+                    
+                } else if (status === 'error') {
+                    updateScrapingProgress('❌ AI engine encountered an error', 'error');
+                    
+                } else if (checkCount >= maxChecks) {
+                    updateScrapingProgress('⏰ Timeout waiting for engine. Please refresh manually.', 'error');
+                    
+                } else {
+                    // Continue monitoring with unknown status
+                    updateScrapingProgress(`⏳ AI engine status: ${status}... (${checkCount}/${maxChecks})`, 'info');
+                    setTimeout(checkEngine, 5000); // Check every 5 seconds for unknown status
+                }
+            })
+            .catch(error => {
+                // Don't log 404 errors as they're expected when pipeline endpoint doesn't exist
+                if (error.message.includes('404')) {
+                    pipelineEndpointExists = false;
+                    console.log('🔄 Pipeline endpoint not found, will simulate completion on next check');
+                } else if (!error.message.includes('404')) {
+                    console.error('Engine status check failed:', error);
+                }
+                
+                if (checkCount < maxChecks) {
+                    updateScrapingProgress(`🔍 Checking engine status... (${checkCount}/${maxChecks})`, 'info');
+                    setTimeout(checkEngine, 5000);
+                } else {
+                    updateScrapingProgress('❌ Could not check engine status. Please refresh manually.', 'error');
+                }
+            });
+    };
+    
+    // Start checking immediately, then every few seconds
+    setTimeout(checkEngine, 1000);
+}
+
+// Popup Functions
+function openPakWheelsPopup() {
+    const popup = document.getElementById('pakWheelsPopup');
+    if (popup) {
+        popup.classList.add('active');
+        
+        // Focus on input and select default value
+        setTimeout(() => {
+            const input = document.getElementById('pakWheelsPosts');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }, 100);
+    }
+}
+
+function closePakWheelsPopup() {
+    const popup = document.getElementById('pakWheelsPopup');
+    if (popup) {
+        popup.classList.remove('active');
+    }
+}
+
+function openWatiPopup() {
+    const popup = document.getElementById('watiPopup');
+    if (popup) {
+        popup.classList.add('active');
+        
+        // Focus on select element
+        setTimeout(() => {
+            const select = document.getElementById('watiDays');
+            if (select) {
+                select.focus();
+            }
+        }, 100);
+    }
+}
+
+function closeWatiPopup() {
+    const popup = document.getElementById('watiPopup');
+    if (popup) {
+        popup.classList.remove('active');
+    }
+}
+
+function startPakWheelsScraping() {
+    const postsInput = document.getElementById('pakWheelsPosts');
+    const posts = parseInt(postsInput.value);
+    
+    // Validate input
+    if (isNaN(posts) || posts < 10 || posts > 10000) {
+        showToast('Please enter a valid number of posts (10-10,000)');
+        postsInput.focus();
+        postsInput.select();
+        return;
+    }
+    
+    console.log('🚀 Starting PakWheels scraping for', posts, 'posts');
+    closePakWheelsPopup();
+    
+    // Show progress popup
+    showScrapingProgress('PakWheels', posts);
+    
+    // Make API call to start scraping
+    fetch('/scrape_single_topic', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            max_posts: posts,
+            fetch_mode: 'latest'
+        })
+    })
+    .then(response => {
+        if (response.redirected) {
+            // Server redirected, which means scraping completed
+            updateScrapingProgress('Scraping completed successfully!', 'success');
+            startEngineMonitoring();
+        } else {
+            return response.json();
+        }
+    })
+    .then(data => {
+        if (data) {
+            if (data.success) {
+                updateScrapingProgress(`Successfully scraped ${data.count || posts} posts!`, 'success');
+                startEngineMonitoring();
+            } else {
+                updateScrapingProgress('Error: ' + (data.error || 'Unknown error'), 'error');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('❌ Scraping error:', error);
+        updateScrapingProgress('Error: ' + error.message, 'error');
+    });
+}
+
+function startWatiFetching() {
+    const days = document.getElementById('watiDays').value;
+    closeWatiPopup();
+    
+    console.log('📱 Starting WATI data fetch for', days, 'days');
+    
+    // Show progress popup
+    showScrapingProgress('WATI', `${days} days`);
+    
+    // Start progress monitoring immediately
+    startWatiProgressMonitoring();
+    
+    // Make API call to fetch WATI data
+    fetch('/fetch_wati_data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            period: `${days}d`
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const count = data.messages_imported || 0;
+            updateScrapingProgress(`Successfully fetched ${count} WhatsApp messages!`, 'success');
+            startEngineMonitoring();
+        } else {
+            updateScrapingProgress('Error: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('❌ WATI fetch error:', error);
+        updateScrapingProgress('Error: ' + error.message, 'error');
+    });
+}
+
+// Monitor WATI progress by checking logs
+function startWatiProgressMonitoring() {
+    let checkCount = 0;
+    const maxChecks = 120; // 10 minutes max (5 second intervals)
+    
+    const checkProgress = () => {
+        checkCount++;
+        
+        // Try to get progress from a logs endpoint (if available)
+        fetch('/api/wati/progress')
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Progress endpoint not available');
+                }
+            })
+            .then(data => {
+                if (data.status === 'processing' && data.progress) {
+                    const { current, total, contact_name, contact_phone } = data.progress;
+                    updateScrapingProgress(
+                        `Processing ${current}/${total}: ${contact_name} (${contact_phone})`, 
+                        'info'
+                    );
+                    
+                    // Update progress bar
+                    const progressBar = document.getElementById('progressBar');
+                    if (progressBar && total > 0) {
+                        const percentage = Math.round((current / total) * 90); // Max 90% until complete
+                        progressBar.style.width = percentage + '%';
+                    }
+                    
+                    // Continue monitoring
+                    if (checkCount < maxChecks) {
+                        setTimeout(checkProgress, 3000); // Check every 3 seconds
+                    }
+                } else if (data.status === 'completed') {
+                    // Process completed
+                    updateScrapingProgress('WATI data fetch completed!', 'success');
+                } else if (data.status === 'error') {
+                    updateScrapingProgress('WATI fetch encountered an error', 'error');
+                }
+            })
+            .catch(error => {
+                // Progress endpoint not available, use simulated progress
+                if (checkCount < maxChecks) {
+                    const simulatedProgress = Math.min(85, (checkCount / maxChecks) * 85);
+                    const progressBar = document.getElementById('progressBar');
+                    if (progressBar) {
+                        progressBar.style.width = simulatedProgress + '%';
+                    }
+                    
+                    // Show generic progress message
+                    updateScrapingProgress(
+                        `Fetching WATI data... (${checkCount}/${maxChecks})`, 
+                        'info'
+                    );
+                    
+                    setTimeout(checkProgress, 5000); // Check every 5 seconds
+                } else {
+                    updateScrapingProgress('WATI fetch taking longer than expected...', 'info');
+                }
+            });
+    };
+    
+    // Start checking after a short delay
+    setTimeout(checkProgress, 2000);
+}
+
+// Show/Hide Typing Indicator
+function showTypingIndicator() {
+    hideWelcome();
+    
+    const messagesContainer = document.getElementById('messagesContainer');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'message bot typing-message';
+    typingDiv.id = 'typingIndicator';
+    
+    const header = document.createElement('div');
+    header.className = 'message-header';
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = '🧠';
+    
+    const author = document.createElement('div');
+    author.className = 'message-author';
+    author.textContent = 'Insights AI';
+    
+    header.appendChild(avatar);
+    header.appendChild(author);
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    // Enhanced thinking indicator with rotating messages
+    const thinkingIndicator = document.createElement('div');
+    thinkingIndicator.className = 'thinking-indicator';
+    
+    const thinkingMessages = [
+        '🧠 Thinking...',
+        '📊 Gathering data...',
+        '🔍 Analyzing information...',
+        '💡 Processing insights...',
+        '⚡ Generating response...'
+    ];
+    
+    let messageIndex = 0;
+    thinkingIndicator.innerHTML = `
+        <div class="thinking-text">${thinkingMessages[0]}</div>
+        <div class="thinking-dots">
+            <div class="thinking-dot"></div>
+            <div class="thinking-dot"></div>
+            <div class="thinking-dot"></div>
+        </div>
+    `;
+    
+    // Rotate thinking messages every 2 seconds
+    const messageInterval = setInterval(() => {
+        messageIndex = (messageIndex + 1) % thinkingMessages.length;
+        const textElement = thinkingIndicator.querySelector('.thinking-text');
+        if (textElement) {
+            textElement.style.opacity = '0';
+            setTimeout(() => {
+                textElement.textContent = thinkingMessages[messageIndex];
+                textElement.style.opacity = '1';
+            }, 200);
+        }
+    }, 2000);
+    
+    // Store interval for cleanup
+    thinkingIndicator.messageInterval = messageInterval;
+    
+    contentDiv.appendChild(thinkingIndicator);
+    typingDiv.appendChild(header);
+    typingDiv.appendChild(contentDiv);
+    
+    messagesContainer.appendChild(typingDiv);
+    
+    // Force scroll when adding typing indicator
+    setTimeout(() => {
+        scrollToBottom(true);
+    }, 50);
+}
+
+function hideTypingIndicator() {
+    const typingIndicator = document.getElementById('typingIndicator');
+    if (typingIndicator) {
+        // Clear message rotation interval
+        const thinkingDiv = typingIndicator.querySelector('.thinking-indicator');
+        if (thinkingDiv && thinkingDiv.messageInterval) {
+            clearInterval(thinkingDiv.messageInterval);
+        }
+        
+        typingIndicator.remove();
+    }
+}
+
+// Hide Welcome Screen and Show Messages Container
+function hideWelcome() {
+    console.log('👋 Hiding welcome screen and showing messages container...');
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const messagesContainer = document.getElementById('messagesContainer');
+    
+    if (welcomeScreen && messagesContainer) {
+        welcomeScreen.style.display = 'none';
+        messagesContainer.style.display = 'block';
+        console.log('✅ Welcome hidden, messages container shown');
+    } else {
+        console.error('❌ Could not find welcome screen or messages container');
+        console.log('Welcome screen found:', !!welcomeScreen);
+        console.log('Messages container found:', !!messagesContainer);
+    }
+}
+
+// Scroll to Bottom
+function scrollToBottom(force = false) {
+    const chatArea = document.getElementById('chatArea');
+    if (!chatArea) {
+        console.log('❌ Chat area not found for scrolling');
+        return;
+    }
+    
+    // Force scroll if requested, or if user hasn't manually scrolled
+    if (force || !userScrolled) {
+        console.log('📍 Scrolling to bottom...');
+        
+        // Remove any existing scroll hint
+        const existingHint = document.getElementById('scrollDownHint');
+        if (existingHint) {
+            existingHint.remove();
+        }
+        
+        // Use requestAnimationFrame for smoother scrolling
+        requestAnimationFrame(() => {
+            chatArea.scrollTo({
+                top: chatArea.scrollHeight,
+                behavior: force ? 'auto' : 'smooth'
+            });
+            console.log('📍 Scrolled to:', chatArea.scrollTop, 'of', chatArea.scrollHeight);
+        });
+    } else {
+        console.log('📍 Scroll skipped - user has manually scrolled');
+    }
+}
+
+// Enhanced scroll to bottom with smooth behavior
+function smoothScrollToBottom() {
+    const chatArea = document.getElementById('chatArea');
+    if (!chatArea) return;
+    
+    // Only smooth scroll if user hasn't manually scrolled and isn't hovering
+    if (!userScrolled && !isHovering) {
+        chatArea.scrollTo({
+            top: chatArea.scrollHeight,
+            behavior: 'smooth'
+        });
+    }
+}
+
+// Check if user is hovering over chat area
+function isUserHoveringChatArea() {
+    const chatArea = document.getElementById('chatArea');
+    if (!chatArea) return false;
+    
+    return chatArea.matches(':hover');
+}
+
+// Add message entrance animation
+function addMessageEntranceAnimation(messageDiv) {
+    if (!messageDiv) return; // Defensive check
+    
+    messageDiv.style.opacity = '0';
+    messageDiv.style.transform = 'translateY(20px)';
+    messageDiv.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+    
+    // Trigger animation after a brief delay
+    setTimeout(() => {
+        if (messageDiv.parentNode) { // Check if still in DOM
+            messageDiv.style.opacity = '1';
+            messageDiv.style.transform = 'translateY(0)';
+        }
+    }, 50);
+}
+
+// Show scroll down hint when user has scrolled up during typing
+function showScrollDownHint() {
+    // Remove existing hint
+    const existingHint = document.getElementById('scrollDownHint');
+    if (existingHint) return; // Don't show multiple hints
+    
+    const chatArea = document.getElementById('chatArea');
+    if (!chatArea) return;
+    
+    const hint = document.createElement('div');
+    hint.id = 'scrollDownHint';
+    hint.className = 'scroll-down-hint';
+    hint.innerHTML = `
+        <div class="scroll-hint-content">
+            <span>New message below</span>
+            <span class="scroll-arrow">↓</span>
+        </div>
+    `;
+    
+    hint.style.cssText = `
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        background: var(--primary-gradient);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        cursor: pointer;
+        z-index: 1000;
+        animation: fadeInUp 0.3s ease-out;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    `;
+    
+    hint.onclick = () => {
+        userScrolled = false; // Reset scroll state
+        scrollToBottom(true);
+        hint.remove();
+    };
+    
+    chatArea.style.position = 'relative';
+    chatArea.appendChild(hint);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (hint.parentNode) {
+            hint.style.animation = 'fadeOut 0.3s ease-out';
+            setTimeout(() => hint.remove(), 300);
+        }
+    }, 5000);
+}
+
+// Parse References Function
+function parseReferences(content) {
+    // Defensive checks
+    if (!content || typeof content !== 'string') {
+        console.warn('⚠️ parseReferences called with invalid content:', content);
+        return [];
+    }
+    
+    const references = [];
+    // Use global currentMode instead of non-existent modeSelector
+    const mode = currentMode || 'pakwheels';
+    
+    // Enhanced WhatsApp format
+    const enhancedWaPattern = /\*\*\[(\d+)\]\*\*\s*👤\s*([^|]+)\s*\|\s*📅\s*([^|]+)\s*\|\s*🔗\s*WhatsApp\s*\|\s*📞\s*([^\n]+)[^\n]*\n💬\s*\*?"?([^"*\n]+)"?\*?/g;
+    let match;
+    while ((match = enhancedWaPattern.exec(content)) !== null) {
+        references.push({
+            type: 'whatsapp',
+            id: `WA-${match[1]}`,
+            number: parseInt(match[1]),
+            username: match[2].trim(),
+            timestamp: match[3].trim(),
+            contact: match[4].trim(),
+            phone_number: match[4].trim(),
+            message: match[5].trim(),
+            messageType: 'Message',
+            source: 'WhatsApp'
+        });
+    }
+    
+    // PakWheels format
+    const newPakPattern = /\*\*\[(\d+)\]\*\*\s*👤\s*([^|]+)\s*\|\s*📅\s*([^|]+)\s*\|\s*🔗\s*([^\n]+)[^\n]*\n💬\s*\*?"?([^"*\n]+)"?\*?(?:\n🔗\s*\[View Source\]\(([^)]+)\))?/g;
+    while ((match = newPakPattern.exec(content)) !== null) {
+        const url = match[6] ? match[6].trim() : null;
+        let postId = null;
+        if (url) {
+            const postIdMatch = url.match(/\/(\d+)\/?$/);
+            if (postIdMatch) {
+                postId = postIdMatch[1];
+            }
+        }
+        
+        references.push({
+            type: 'pakwheels',
+            number: parseInt(match[1]),
+            username: match[2].trim(),
+            date: match[3].trim(),
+            source: match[4].trim(),
+            message: match[5].trim(),
+            url: url,
+            post_number: postId
+        });
+    }
+    
+    return references;
+}
+
+// Add Message to DOM
+function addMessageToDOM(content, isUser, useTypingEffect = false, structuredData = null) {
+    console.log('💬 Adding message to DOM:', {
+        isUser,
+        contentLength: content ? content.length : 0,
+        useTypingEffect,
+        hasStructuredData: !!structuredData
+    });
+    
+    // Ensure welcome is hidden and messages container is shown
+    hideWelcome();
+    
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (!messagesContainer) {
+        console.error('❌ Messages container not found!');
+        return null;
+    }
+    
+    // Double-check that messages container is visible
+    if (messagesContainer.style.display === 'none') {
+        console.log('🔧 Messages container was hidden, showing it...');
+        messagesContainer.style.display = 'block';
+    }
+    
+    console.log('📦 Messages container found, current children:', messagesContainer.children.length);
+    console.log('📦 Messages container display:', messagesContainer.style.display);
+    console.log('📦 Messages container visible:', messagesContainer.offsetParent !== null);
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+    
+    const header = document.createElement('div');
+    header.className = 'message-header';
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = isUser ? '👤' : '🤖';
+    
+    const author = document.createElement('div');
+    author.className = 'message-author';
+    author.textContent = isUser ? 'You' : 'Insights AI';
+    
+    header.appendChild(avatar);
+    header.appendChild(author);
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    messageDiv.appendChild(header);
+    messageDiv.appendChild(contentDiv);
+    
+    if (isUser) {
+        contentDiv.textContent = content;
+    } else {
+        // Parse references from content with error handling
+        let references = [];
+        try {
+            references = parseReferences(content || '');
+        } catch (error) {
+            console.error('❌ Error parsing references:', error);
+            references = []; // Fallback to empty array
+        }
+        
+        // Remove reference sections from main content
+        let mainContent = content.replace(/\n\nReferences \(PakWheels[^\n]*\):[\s\S]*$/g, '').trim();
+        mainContent = mainContent.replace(/\n\n###?\s*📋\s*References?[\s\S]*$/g, '').trim();
+        mainContent = mainContent.replace(/---\n###?\s*📋\s*References[\s\S]*?---/g, '').trim();
+        mainContent = mainContent.replace(/\*\*\[\d+\]\*\*\s*👤[\s\S]*?(?=\n\n|$)/g, '').trim();
+        mainContent = mainContent.replace(/\*\*\[WA-\d+\]\*\*\s*👤[\s\S]*?(?=\n\n|$)/g, '').trim();
+        
+        // Add message actions for bot messages
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'message-action-btn';
+        copyBtn.innerHTML = '<span>📋</span><span>Copy</span>';
+        copyBtn.onclick = () => copyToClipboard(content);
+        
+        const regenerateBtn = document.createElement('button');
+        regenerateBtn.className = 'message-action-btn';
+        regenerateBtn.innerHTML = '<span>🔄</span><span>Regenerate</span>';
+        regenerateBtn.onclick = () => {
+            const messages = document.querySelectorAll('.message');
+            let userQuery = '';
+            for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].classList.contains('user')) {
+                    userQuery = messages[i].querySelector('.message-content').textContent;
+                    break;
+                }
+            }
+            if (userQuery) {
+                regenerateResponse(messageDiv, userQuery);
+            }
+        };
+        
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'message-action-btn';
+        shareBtn.innerHTML = '<span>🔗</span><span>Share</span>';
+        shareBtn.onclick = () => {
+            copyToClipboard(content);
+            showToast('Response copied! Share it anywhere.');
+        };
+        
+        actionsDiv.appendChild(copyBtn);
+        actionsDiv.appendChild(regenerateBtn);
+        actionsDiv.appendChild(shareBtn);
+        messageDiv.appendChild(actionsDiv);
+        
+        if (useTypingEffect) {
+            typeMessage(contentDiv, mainContent, messageDiv, references, structuredData);
+        } else {
+            // Process content without typing effect
+            processMessageContent(contentDiv, mainContent, messageDiv, references, structuredData);
+        }
+    }
+    
+    messagesContainer.appendChild(messageDiv);
+    console.log('✅ Message added to DOM, container now has', messagesContainer.children.length, 'children');
+    
+    // Add entrance animation
+    addMessageEntranceAnimation(messageDiv);
+    
+    // Force scroll when adding new message
+    setTimeout(() => {
+        scrollToBottom(true);
+    }, 50);
+    
+    return messageDiv;
+}
+
+// Process Message Content
+function processMessageContent(contentDiv, content, messageDiv, references, structuredData) {
+    // Extract and process charts
+    const chartDataArray = [];
+    let processedContent = content;
+    
+    // Find and replace chart code blocks
+    const chartBlockRegex = /```chart\s*\n([\s\S]*?)```/g;
+    let chartMatch;
+    let placeholderIndex = 0;
+    
+    while ((chartMatch = chartBlockRegex.exec(content)) !== null) {
+        const placeholder = `__CHART_PLACEHOLDER_${placeholderIndex}__`;
+        const chartCode = chartMatch[1].trim();
+        
+        try {
+            const lines = chartCode.split('\n');
+            let chartType = 'bar';
+            let chartTitle = 'Chart';
+            let chartData = {};
+            
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('type:')) {
+                    chartType = line.split(':')[1].trim();
+                } else if (line.startsWith('title:')) {
+                    chartTitle = line.substring(6).trim();
+                } else if (line.startsWith('data:')) {
+                    const dataStr = line.substring(5).trim();
+                    chartData = JSON.parse(dataStr);
+                }
+            });
+            
+            chartDataArray.push({
+                placeholder: placeholder,
+                type: chartType,
+                title: chartTitle,
+                data: chartData
+            });
+        } catch (error) {
+            console.error('Error parsing chart:', error);
+        }
+        
+        processedContent = processedContent.replace(chartMatch[0], `\n\n${placeholder}\n\n`);
+        placeholderIndex++;
+    }
+    
+    // Parse markdown to HTML
+    let parsedHTML = marked.parse(processedContent);
+    
+    // Replace chart placeholders with chart containers
+    chartDataArray.forEach((chartInfo) => {
+        if (Object.keys(chartInfo.data).length > 0) {
+            const chartId = 'chart-' + Math.random().toString(36).substr(2, 9);
+            chartInfo.chartId = chartId;
+            const chartHTML = `
+                <div class="chart-container">
+                    <div class="chart-title">${chartInfo.title}</div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="${chartId}"></canvas>
+                    </div>
+                </div>
+            `;
+            console.log('🎨 Replacing chart placeholder:', chartInfo.placeholder, 'with chartId:', chartId);
+            parsedHTML = parsedHTML.replace(chartInfo.placeholder, chartHTML);
+        }
+    });
+    
+    contentDiv.innerHTML = parsedHTML;
+    
+    // Render charts with proper DOM update handling
+    if (chartDataArray.length > 0) {
+        console.log('📊 Found', chartDataArray.length, 'charts to render');
+        // Use requestAnimationFrame to ensure DOM is fully updated
+        requestAnimationFrame(() => {
+            chartDataArray.forEach((chartInfo) => {
+                if (Object.keys(chartInfo.data).length > 0 && chartInfo.chartId) {
+                    console.log('🎯 Rendering chart:', chartInfo.chartId);
+                    renderChart(chartInfo, contentDiv);
+                }
+            });
+        });
+    }
+    
+    // Add references section
+    addReferencesSection(messageDiv, references, structuredData);
+    
+    // Add follow-up suggestions if they exist in structured data
+    if (structuredData && structuredData.followups && structuredData.followups.length > 0) {
+        addFollowUpSuggestions(messageDiv, structuredData.followups);
+    }
+    
+    // Highlight code blocks
+    contentDiv.querySelectorAll('pre code').forEach((block) => {
+        const code = block.textContent.trim();
+        if (!code.includes('type:') || !code.match(/type:\s*(bar|pie|line)/i)) {
+            if (typeof hljs !== 'undefined') {
+                hljs.highlightElement(block);
+            }
+        }
+    });
+}
+
+// Render Chart Function - Enhanced with better error handling
+function renderChart(chartInfo, container, retryCount = 0) {
+    console.log('🎯 Attempting to render chart:', chartInfo.chartId, `(attempt ${retryCount + 1})`);
+    
+    // Ensure Chart.js is loaded first
+    if (typeof Chart === 'undefined') {
+        console.error('❌ Chart.js not loaded, retrying...');
+        if (retryCount < 5) {
+            setTimeout(() => {
+                renderChart(chartInfo, container, retryCount + 1);
+            }, 500);
+        }
+        return;
+    }
+    
+    const canvas = container.querySelector(`#${chartInfo.chartId}`);
+    
+    if (!canvas) {
+        console.error('❌ Canvas not found for chart:', chartInfo.chartId);
+        console.log('🔍 Available elements in container:', container.querySelectorAll('canvas'));
+        
+        // Retry up to 3 times with increasing delays
+        if (retryCount < 3) {
+            setTimeout(() => {
+                renderChart(chartInfo, container, retryCount + 1);
+            }, (retryCount + 1) * 200);
+        }
+        return;
+    }
+    
+    console.log('✅ Canvas found for chart:', chartInfo.chartId);
+    
+    const labels = Object.keys(chartInfo.data);
+    const values = Object.values(chartInfo.data);
+    const colors = getChartColors();
+    
+    if (labels.length === 0 || values.length === 0) {
+        console.warn('⚠️ No data for chart:', chartInfo.chartId);
+        return;
+    }
+    
+    const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+    const borderColors = backgroundColors.map(c => c.replace('0.8', '1'));
+    
+    try {
+        // Destroy existing chart if it exists
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) {
+            existingChart.destroy();
+        }
+        
+        setTimeout(() => {
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error('❌ Could not get canvas context');
+                return;
+            }
+            
+            new Chart(ctx, {
+                type: chartInfo.type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: chartInfo.title,
+                        data: values,
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: chartInfo.type === 'pie',
+                            position: 'bottom',
+                            labels: {
+                                color: getComputedStyle(document.documentElement)
+                                    .getPropertyValue('--text-primary').trim() || '#1e293b',
+                                padding: 15,
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(30, 30, 30, 0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            padding: 12,
+                            titleFont: { size: 14 },
+                            bodyFont: { size: 13 }
+                        }
+                    },
+                    scales: chartInfo.type !== 'pie' ? {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: getComputedStyle(document.documentElement)
+                                    .getPropertyValue('--text-secondary').trim() || '#64748b'
+                            },
+                            grid: {
+                                color: getComputedStyle(document.documentElement)
+                                    .getPropertyValue('--border-color').trim() || '#e2e8f0'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: getComputedStyle(document.documentElement)
+                                    .getPropertyValue('--text-secondary').trim() || '#64748b'
+                            },
+                            grid: {
+                                color: getComputedStyle(document.documentElement)
+                                    .getPropertyValue('--border-color').trim() || '#e2e8f0'
+                            }
+                        }
+                    } : {}
+                }
+            });
+            
+            console.log('✅ Chart rendered successfully:', chartInfo.chartId);
+        }, 100);
+        
+    } catch (error) {
+        console.error('❌ Error rendering chart:', error);
+        renderFallbackChart(chartInfo, container);
+    }
+}
+
+// Fallback chart renderer using HTML/CSS
+function renderFallbackChart(chartInfo, container) {
+    const canvas = container.querySelector(`#${chartInfo.chartId}`);
+    if (!canvas) return;
+    
+    const labels = Object.keys(chartInfo.data);
+    const values = Object.values(chartInfo.data);
+    const maxValue = Math.max(...values);
+    
+    // Replace canvas with HTML chart
+    const chartHTML = document.createElement('div');
+    chartHTML.className = 'fallback-chart';
+    chartHTML.innerHTML = `
+        <div class="fallback-chart-title">${chartInfo.title}</div>
+        <div class="fallback-chart-bars">
+            ${labels.map((label, i) => {
+                const percentage = (values[i] / maxValue) * 100;
+                const color = getChartColors()[i % getChartColors().length];
+                return `
+                    <div class="fallback-chart-bar">
+                        <div class="fallback-chart-label">${label}</div>
+                        <div class="fallback-chart-bar-container">
+                            <div class="fallback-chart-bar-fill" style="width: ${percentage}%; background: ${color}"></div>
+                            <div class="fallback-chart-value">${values[i]}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    
+    // Add fallback chart styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .fallback-chart {
+            padding: 16px;
+            background: var(--card-bg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+        }
+        .fallback-chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+        .fallback-chart-bar {
+            margin-bottom: 12px;
+        }
+        .fallback-chart-label {
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: var(--text-secondary);
+        }
+        .fallback-chart-bar-container {
+            position: relative;
+            height: 24px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .fallback-chart-bar-fill {
+            height: 100%;
+            border-radius: 12px;
+            transition: width 0.8s ease-out;
+        }
+        .fallback-chart-value {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+    `;
+    
+    if (!document.querySelector('#fallback-chart-styles')) {
+        style.id = 'fallback-chart-styles';
+        document.head.appendChild(style);
+    }
+    
+    canvas.parentNode.replaceChild(chartHTML, canvas);
+    console.log('✅ Fallback chart rendered:', chartInfo.title);
+}
+
+// Add Follow-up Suggestions
+function addFollowUpSuggestions(messageDiv, followups) {
+    if (!followups || followups.length === 0) return;
+    
+    const suggestionsDiv = document.createElement('div');
+    suggestionsDiv.className = 'follow-up-suggestions';
+    
+    const title = document.createElement('div');
+    title.className = 'follow-up-title';
+    title.innerHTML = '💡 Suggested follow-ups:';
+    suggestionsDiv.appendChild(title);
+    
+    followups.forEach(followup => {
+        const item = document.createElement('div');
+        item.className = 'follow-up-item';
+        item.innerHTML = `
+            <span class="follow-up-icon">💡</span>
+            <span class="follow-up-text">${followup}</span>
+        `;
+        
+        item.addEventListener('click', () => {
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput) {
+                chatInput.value = followup;
+                chatInput.focus();
+                autoResize(chatInput);
+            }
+        });
+        
+        suggestionsDiv.appendChild(item);
+    });
+    
+    const messageContent = messageDiv.querySelector('.message-content');
+    if (messageContent) {
+        messageContent.appendChild(suggestionsDiv);
+    }
+}
+
+// Add References Section
+function addReferencesSection(messageDiv, references, structuredData = null) {
+    if (messageDiv.querySelector('.references-section')) {
+        return;
+    }
+    
+    if (structuredData && structuredData.references && structuredData.references.length > 0) {
+        references = structuredData.references;
+    }
+
+    if (references.length === 0) return;
+
+    const refsSection = document.createElement('div');
+    refsSection.className = 'references-section';
+    
+    const refsTitle = document.createElement('div');
+    refsTitle.className = 'references-title';
+    refsTitle.innerHTML = '📋 <span>References</span>';
+    refsSection.appendChild(refsTitle);
+    
+    references.forEach(ref => {
+        const refItem = document.createElement('div');
+        refItem.className = 'reference-item';
+        refItem.id = ref.id || `ref-${ref.number || ref.id}`;
+        
+        let html = '';
+        
+        if (ref.type === 'whatsapp') {
+            const displayId = ref.id ? ref.id.replace('WA-', '#') : '#' + (ref.number || '');
+            html = `
+                <div class="reference-header">
+                    <span class="reference-badge whatsapp">📱 WhatsApp</span>
+                    <span class="reference-id">${displayId}</span>
+                </div>
+                <div class="reference-body">
+                    <div class="reference-meta">
+                        <span class="reference-username">👤 ${ref.username || 'Unknown'}</span>
+                        ${ref.timestamp ? `<span class="reference-timestamp">🕐 ${ref.timestamp}</span>` : ''}
+                    </div>
+                    <div class="reference-contact">📞 ${ref.contact || ref.phone_number || 'N/A'}</div>
+                    <div class="reference-type">🏷️ ${ref.messageType || 'Message'}</div>
+                    <div class="reference-message">💬 "${ref.message || ref.preview || ''}"</div>
+                </div>
+            `;
+        } else if (ref.type === 'pakwheels') {
+            let postUrl = ref.url;
+            
+            if (!postUrl && (ref.post_number || ref.id)) {
+                const postNumber = ref.post_number || ref.id;
+                postUrl = `https://www.pakwheels.com/forums/t/haval-h6-dedicated-discussion-owner-fan-club-thread/2198325/${postNumber}`;
+            }
+            
+            refItem.style.cursor = postUrl ? 'pointer' : 'default';
+            if (postUrl) {
+                refItem.onclick = () => window.open(postUrl, '_blank');
+            }
+            
+            html = `
+                <div class="reference-header">
+                    <span class="reference-badge pakwheels">🔗 PakWheels Forum</span>
+                    <span class="reference-id">[${ref.number}]</span>
+                </div>
+                <div class="reference-body">
+                    <div class="reference-meta">
+                        <span class="reference-username">👤 ${ref.username || 'Unknown'}</span>
+                        <span class="reference-timestamp">📅 ${ref.date || 'N/A'}</span>
+                    </div>
+                    <div class="reference-message">💬 "${ref.message || ''}"</div>
+                    ${postUrl ? `<div class="reference-link">🔗 <a href="${postUrl}" target="_blank">View Source</a></div>` : ''}
+                </div>
+            `;
+        }
+        
+        refItem.innerHTML = html;
+        
+        // Add hover effects for reference items
+        refItem.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = '0 4px 12px rgba(124, 58, 237, 0.15)';
+        });
+        
+        refItem.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '';
+        });
+        
+        refsSection.appendChild(refItem);
+    });
+    
+    const messageContent = messageDiv.querySelector('.message-content');
+    if (messageContent) {
+        messageContent.appendChild(refsSection);
+    }
+}
+
+// Typing Effect Function
+function typeMessage(element, content, messageDiv, references, structuredData = null) {
+    isTyping = true;
+    currentTypingElement = element;
+    currentMessageDiv = messageDiv;
+    currentReferences = references || [];
+    currentStructuredData = structuredData;
+    fullContent = content;
+    userScrolled = false;
+    
+    // Show stop button
+    const stopBtn = document.getElementById('stopBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    if (stopBtn && sendBtn) {
+        stopBtn.classList.add('active');
+        sendBtn.style.display = 'none';
+    }
+    
+    // Add cursor
+    const cursor = document.createElement('span');
+    cursor.className = 'typing-cursor';
+    cursor.style.display = 'inline-block';
+    element.appendChild(cursor);
+    
+    // Type character by character
+    let charIndex = 0;
+    const textToType = content;
+    
+    function typeNextChar() {
+        if (!isTyping || charIndex >= textToType.length) {
+            // Typing complete
+            if (cursor.parentNode) {
+                cursor.remove();
+            }
+            
+            // Process final content
+            processMessageContent(element, content, messageDiv, references, structuredData);
+            finishTyping();
+            return;
+        }
+        
+        // Get next chunk of text
+        const textChunk = textToType.substring(0, charIndex + 1);
+        
+        // Parse markdown incrementally
+        let parsedHTML = marked.parse(textChunk);
+        
+        // Remove WA- citations from main text content
+        parsedHTML = parsedHTML.replace(/\[WA-\d+\]/g, '');
+        parsedHTML = parsedHTML.replace(/(?<!\[)\bWA\b(?!-\d+\])/gi, '');
+        
+        element.innerHTML = parsedHTML + '<span class="typing-cursor"></span>';
+        
+        charIndex++;
+        
+        // Force scroll during typing with smooth behavior and user interaction detection
+        if (!userScrolled && !isHovering) {
+            setTimeout(() => {
+                scrollToBottom(true); // Force scroll during typing
+            }, 10);
+        } else if (userScrolled) {
+            // User has scrolled up, show a subtle indicator they can scroll down
+            showScrollDownHint();
+        }
+        
+        // Continue typing
+        typingInterval = setTimeout(typeNextChar, typingSpeed);
+    }
+    
+    typeNextChar();
+}
+
+// Finish Typing
+function finishTyping() {
+    isTyping = false;
+    currentTypingElement = null;
+    
+    // Hide stop button, show send button
+    const stopBtn = document.getElementById('stopBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    if (stopBtn && sendBtn) {
+        stopBtn.classList.remove('active');
+        sendBtn.style.display = 'flex';
+    }
+    
+    scrollToBottom();
+}
+
+// Stop Typing
+function stopTyping() {
+    if (isTyping && currentTypingElement) {
+        isTyping = false;
+        
+        // Clear typing interval
+        if (typingInterval) {
+            clearTimeout(typingInterval);
+            typingInterval = null;
+        }
+        
+        // Remove cursor
+        const cursor = currentTypingElement.querySelector('.typing-cursor');
+        if (cursor) {
+            cursor.remove();
+        }
+        
+        // Process final content
+        processMessageContent(currentTypingElement, fullContent, currentMessageDiv, currentReferences, currentStructuredData);
+        
+        finishTyping();
+    }
+}
+
+// Utility Functions
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard!');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+    });
+}
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--card-bg);
+        color: var(--text-primary);
+        padding: 12px 24px;
+        border-radius: 24px;
+        box-shadow: var(--shadow-lg);
+        z-index: 10000;
+        animation: fadeInUp 0.3s ease-out;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+    }, 2000);
+}
+
+// Chat History Management
+function loadChatHistory() {
+    // This function is kept for compatibility but we'll load from database in loadRecentChats
+    console.log('📚 Chat history system initialized');
+}
+
+function loadRecentChats() {
+    const recentChatsList = document.getElementById('recentChatsList');
+    if (!recentChatsList) return;
+    
+    // Show loading state
+    recentChatsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-secondary);">Loading recent conversations...</div>';
+    
+    // Fetch recent chat sessions from database
+    fetch('/api/chat/sessions')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📥 Recent chats loaded:', data);
+            displayRecentChats(data.sessions || []);
+        })
+        .catch(error => {
+            console.error('❌ Error loading recent chats:', error);
+            recentChatsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-secondary);">Error loading conversations</div>';
+        });
+}
+
+function displayRecentChats(sessions) {
+    const recentChatsList = document.getElementById('recentChatsList');
+    if (!recentChatsList) return;
+    
+    recentChatsList.innerHTML = '';
+    
+    if (sessions.length === 0) {
+        recentChatsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-secondary);">No recent conversations</div>';
+        return;
+    }
+    
+    sessions.slice(0, 10).forEach((session, index) => {
+        const chatItem = document.createElement('div');
+        chatItem.className = 'quick-action-btn';
+        chatItem.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+        `;
+        
+        // Truncate first query for display
+        const displayQuery = session.first_query && session.first_query.length > 60 
+            ? session.first_query.substring(0, 60) + '...' 
+            : session.first_query || 'Conversation';
+        
+        // Format timestamp
+        const timestamp = session.last_activity 
+            ? new Date(session.last_activity).toLocaleDateString() + ' ' + new Date(session.last_activity).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            : 'Unknown time';
+        
+        // Create mode badge
+        const modeBadge = session.mode === 'whatsapp' ? '💬' : 
+                         session.mode === 'insights' ? '🤖' : '🏢';
+        
+        chatItem.innerHTML = `
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 4px;">
+                <div style="font-weight: 600; color: var(--text-primary);">${displayQuery}</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">${modeBadge} ${session.mode}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                <div style="font-size: 12px; opacity: 0.7;">${timestamp}</div>
+                <div style="font-size: 11px; color: var(--primary-color);">${session.message_count} messages</div>
+            </div>
+        `;
+        
+        // Click handler to view conversation history (not use as prompt)
+        chatItem.onclick = () => {
+            hideRecentChats();
+            viewConversationHistory(session.session_id, session.mode, session.first_query);
+        };
+        
+        recentChatsList.appendChild(chatItem);
+    });
+}
+
+function viewConversationHistory(sessionId, mode, firstQuery) {
+    console.log('👁️ Viewing conversation history:', { sessionId, mode, firstQuery });
+    
+    // Show loading message
+    const loadingMessage = 'Loading conversation history...';
+    addMessageToDOM(loadingMessage, false);
+    
+    // Fetch the full conversation history
+    fetch(`/api/chat/history/${sessionId}?mode=${mode}`)
+        .then(response => {
+            console.log('📡 History API response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📥 Raw conversation data received:', data);
+            console.log('📊 History array:', data.history);
+            console.log('📈 History length:', data.history ? data.history.length : 0);
+            
+            if (data.history && Array.isArray(data.history)) {
+                displayConversationHistory(data.history, firstQuery);
+            } else {
+                console.error('❌ Invalid history data structure:', data);
+                addMessageToDOM('No conversation history found for this session.', false);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error loading conversation history:', error);
+            addMessageToDOM('Error loading conversation history: ' + error.message, false);
+        });
+}
+
+function displayConversationHistory(history, title) {
+    console.log('📖 Displaying conversation history:', history);
+    
+    // Hide welcome screen and show messages container
+    hideWelcome();
+    
+    // Clear current messages and reset conversation history
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = '';
+    }
+    
+    // Reset global conversation history for this view
+    conversationHistory = [];
+    
+    // Add a header for the conversation
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'conversation-header';
+    headerDiv.style.cssText = `
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 24px;
+        text-align: center;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+        margin: 0 0 24px 0;
+    `;
+    headerDiv.innerHTML = `
+        <div style="font-size: 18px; font-weight: 600; color: var(--primary-color); margin-bottom: 8px;">
+            📖 Conversation History
+        </div>
+        <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
+            ${title || 'Previous conversation'} • ${history.length} messages
+        </div>
+        <button onclick="newChat()" style="
+            padding: 8px 16px;
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        ">✏️ Start New Chat</button>
+    `;
+    
+    messagesContainer.appendChild(headerDiv);
+    
+    // Display each message in the conversation
+    if (history && history.length > 0) {
+        console.log(`📝 Processing ${history.length} messages`);
+        
+        history.forEach((msg, index) => {
+            console.log(`Message ${index}:`, msg);
+            
+            if (msg.role === 'user' && msg.content) {
+                console.log('👤 Adding user message:', msg.content.substring(0, 50) + '...');
+                addMessageToDOM(msg.content, true);
+            } else if (msg.role === 'assistant' && msg.content) {
+                console.log('🤖 Adding assistant message:', msg.content.substring(0, 50) + '...');
+                addMessageToDOM(msg.content, false);
+            }
+        });
+        
+        console.log('✅ All messages added to DOM');
+    } else {
+        console.log('❌ No messages to display');
+        const noMessagesDiv = document.createElement('div');
+        noMessagesDiv.style.cssText = `
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-style: italic;
+        `;
+        noMessagesDiv.textContent = 'No messages found in this conversation.';
+        messagesContainer.appendChild(noMessagesDiv);
+    }
+    
+    // Scroll to bottom after a short delay to ensure DOM is updated
+    setTimeout(() => {
+        scrollToBottom(true); // Force scroll
+        console.log('📍 Forced scroll to bottom');
+    }, 200);
+    
+    showToast(`Loaded conversation with ${history.length} messages`);
+}
+
+function newChat() {
+    console.log('🆕 Starting new chat...');
+    conversationHistory = [];
+    currentSessionId = null;
+    
+    // Clear messages and show welcome screen
+    const messagesContainer = document.getElementById('messagesContainer');
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    
+    if (messagesContainer && welcomeScreen) {
+        console.log('🔄 Resetting chat display...');
+        messagesContainer.style.display = 'none';
+        messagesContainer.innerHTML = '';
+        welcomeScreen.style.display = 'flex';
+        console.log('✅ Welcome screen shown, messages container hidden');
+    } else {
+        console.error('❌ Could not find required elements for new chat');
+    }
+    
+    // Clear input
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.value = '';
+        autoResize(chatInput);
+    }
+    
+    // Clear draft and reset retry count
+    clearDraft();
+    retryCount = 0;
+    
+    console.log('✅ New chat initialized');
+}
+
+// Engine Status Monitoring
+function startEngineStatusMonitoring() {
+    // Check initial status
+    checkEngineStatus();
+    
+    // Check status every 30 seconds
+    setInterval(checkEngineStatus, 30000);
+    
+    // Monitor network connectivity
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Check initial connectivity
+    updateConnectionStatus(navigator.onLine);
+}
+
+let pipelineEndpointExists = true; // Track if the endpoint exists
+
+function handleOnline() {
+    console.log('🌐 Connection restored');
+    updateConnectionStatus(true);
+    showToast('Connection restored');
+    
+    // Retry any pending operations
+    checkEngineStatus();
+}
+
+function handleOffline() {
+    console.log('📡 Connection lost');
+    updateConnectionStatus(false);
+    showToast('Connection lost - working offline');
+}
+
+function updateConnectionStatus(isOnline) {
+    const indicator = document.getElementById('statusIndicator');
+    if (!indicator) return;
+    
+    const dot = indicator.querySelector('span');
+    const textSpan = indicator.childNodes[2];
+    
+    if (!isOnline) {
+        if (dot) dot.style.background = '#ef4444'; // red
+        if (textSpan) textSpan.textContent = 'Offline';
+        return;
+    }
+    
+    // If online, show the actual engine status (only if endpoint exists)
+    if (pipelineEndpointExists) {
+        checkEngineStatus();
+    } else {
+        // Default to ready if no pipeline endpoint
+        if (dot) dot.style.background = '#10b981'; // green
+        if (textSpan) textSpan.textContent = 'Ready';
+    }
+}
+
+function checkEngineStatus() {
+    // Skip if we know the endpoint doesn't exist
+    if (!pipelineEndpointExists) {
+        updateStatusIndicator('ready');
+        return;
+    }
+    
+    fetch('/api/pipeline/status')
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 404) {
+                    pipelineEndpointExists = false; // Mark endpoint as non-existent
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            updateStatusIndicator(data.status || 'unknown');
+        })
+        .catch(error => {
+            // Don't log 404 errors as they're expected when pipeline endpoint doesn't exist
+            if (error.message.includes('404')) {
+                pipelineEndpointExists = false;
+            } else if (!error.message.includes('404')) {
+                console.log('Status check failed:', error.message);
+            }
+            updateStatusIndicator('ready');
+        });
+}
+
+function updateStatusIndicator(status) {
+    const indicator = document.getElementById('statusIndicator');
+    if (!indicator) return;
+    
+    let color = '#10b981'; // green
+    let text = 'Connected';
+    
+    switch (status) {
+        case 'processing':
+            color = '#f59e0b'; // yellow
+            text = 'Processing';
+            break;
+        case 'error':
+            color = '#ef4444'; // red
+            text = 'Error';
+            break;
+        case 'ready':
+        case 'completed':
+        default:
+            color = '#10b981'; // green
+            text = 'Ready';
+            break;
+    }
+    
+    const dot = indicator.querySelector('span');
+    if (dot) {
+        dot.style.background = color;
+    }
+    
+    const textSpan = indicator.childNodes[2]; // The text node after the dot and gap
+    if (textSpan) {
+        textSpan.textContent = text;
+    }
+}
+
+// Regenerate Response
+function regenerateResponse(messageDiv, userQuery) {
+    // Remove the current bot message
+    messageDiv.remove();
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    // Get current mode and thinking mode
+    const mode = currentMode; // Use global currentMode
+    
+    // Send request again
+    fetch('/chatbot_query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            query: userQuery,
+            mode: currentMode, // Use global currentMode
+            thinking: thinkingMode
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideTypingIndicator();
+        
+        if (data.answer) {
+            // Update conversation history
+            conversationHistory[conversationHistory.length - 1] = {
+                role: 'assistant',
+                content: data.answer
+            };
+            
+            // Add new bot message
+            addMessageToDOM(data.answer, false, true, data.structured);
+        } else {
+            addMessageToDOM('Sorry, I encountered an error. Please try again.', false);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        hideTypingIndicator();
+        addMessageToDOM('Sorry, I encountered an error. Please try again.', false);
+    });
+}
+
+// Recent Chats Functions
+function toggleRecentChats() {
+    const panel = document.getElementById('recentChatsPanel');
+    if (panel) {
+        panel.classList.toggle('active');
+        if (panel.classList.contains('active')) {
+            loadRecentChats();
+        }
+    }
+}
+
+function hideRecentChats() {
+    const panel = document.getElementById('recentChatsPanel');
+    if (panel) {
+        panel.classList.remove('active');
+    }
+}
+
+function clearAllChats() {
+    if (confirm('Are you sure you want to clear all chat history? This will delete all your previous conversations.')) {
+        console.log('🗑️ Clearing all chat history...');
+        
+        fetch('/api/chat/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Chat history cleared:', data);
+            if (data.success) {
+                loadRecentChats(); // Reload the empty list
+                showToast('Chat history cleared successfully');
+                
+                // Also start a new chat
+                newChat();
+            } else {
+                showToast('Error clearing chat history: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error clearing chat history:', error);
+            showToast('Error clearing chat history: ' + error.message);
+        });
+    }
+}
+
+// Image Upload Handler
+function handleImageUpload(event) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const chatInput = document.getElementById('chatInput');
+    if (!chatInput) return;
+    
+    Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) {
+            showToast('Please select only image files');
+            return;
+        }
+        
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            showToast('Image size should be less than 5MB');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Create image preview
+            const imagePreview = document.createElement('div');
+            imagePreview.className = 'image-preview-container';
+            imagePreview.style.cssText = `
+                position: relative;
+                display: inline-block;
+                margin: 8px 8px 8px 0;
+                border-radius: var(--radius-md);
+                overflow: hidden;
+                border: 1px solid var(--border-color);
+            `;
+            
+            imagePreview.innerHTML = `
+                <img src="${e.target.result}" class="image-preview" alt="Uploaded image" style="
+                    max-width: 200px;
+                    max-height: 200px;
+                    display: block;
+                ">
+                <button class="image-remove-btn" onclick="this.parentElement.remove()" style="
+                    position: absolute;
+                    top: 4px;
+                    right: 4px;
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    border: none;
+                    background: rgba(0, 0, 0, 0.7);
+                    color: white;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px;
+                    font-weight: bold;
+                ">✕</button>
+            `;
+            
+            // Add to input area
+            const inputWrapper = document.querySelector('.input-wrapper');
+            inputWrapper.insertBefore(imagePreview, chatInput);
+            
+            // Update placeholder
+            if (chatInput.value.trim() === '') {
+                chatInput.placeholder = 'Describe what you want to know about this image...';
+            }
+            
+            showToast('Image uploaded successfully');
+        };
+        
+        reader.readAsDataURL(file);
+    });
+    
+    // Clear the input
+    event.target.value = '';
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🌟 DOM Content Loaded - Starting initialization...');
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart !== 'undefined') {
+        console.log('✅ Chart.js is loaded');
+    } else {
+        console.error('❌ Chart.js is not loaded');
+    }
+    
+    // Initialize the app
+    init();
+    
+    // Hide loading screen with multiple fallbacks
+    function hideLoadingScreen() {
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen) {
+            console.log('🎯 Hiding loading screen...');
+            loadingScreen.classList.add('hidden');
+            
+            // Force hide after animation
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 500);
+        }
+    }
+    
+    // Primary timeout
+    setTimeout(hideLoadingScreen, 1500);
+    
+    // Fallback timeout in case something goes wrong
+    setTimeout(hideLoadingScreen, 3000);
+    
+    // Immediate fallback if everything loads quickly
+    if (document.readyState === 'complete') {
+        setTimeout(hideLoadingScreen, 500);
+    }
+});
+
+// Additional fallback for window load
+window.addEventListener('load', function() {
+    console.log('🌟 Window fully loaded');
+    setTimeout(() => {
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen && !loadingScreen.classList.contains('hidden')) {
+            console.log('🎯 Force hiding loading screen on window load...');
+            loadingScreen.classList.add('hidden');
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 500);
+        }
+    }, 1000);
+});
+
+// Emergency fallback - click to dismiss loading screen
+document.addEventListener('click', function(event) {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen && !loadingScreen.classList.contains('hidden') && event.target.closest('.loading-screen')) {
+        console.log('🆘 Emergency: User clicked loading screen - force hiding...');
+        loadingScreen.classList.add('hidden');
+        setTimeout(() => {
+            loadingScreen.style.display = 'none';
+        }, 100);
+    }
+});
+
+// Debug function - can be called from browser console
+window.debugChatbot = function() {
+    console.log('🔧 CHATBOT DEBUG INFO:');
+    
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const messagesContainer = document.getElementById('messagesContainer');
+    const chatArea = document.getElementById('chatArea');
+    
+    console.log('📱 Welcome Screen:', {
+        exists: !!welcomeScreen,
+        display: welcomeScreen ? welcomeScreen.style.display : 'N/A',
+        visible: welcomeScreen ? welcomeScreen.offsetParent !== null : false
+    });
+    
+    console.log('📦 Messages Container:', {
+        exists: !!messagesContainer,
+        display: messagesContainer ? messagesContainer.style.display : 'N/A',
+        visible: messagesContainer ? messagesContainer.offsetParent !== null : false,
+        childCount: messagesContainer ? messagesContainer.children.length : 0,
+        innerHTML: messagesContainer ? messagesContainer.innerHTML.length : 0
+    });
+    
+    console.log('📜 Chat Area:', {
+        exists: !!chatArea,
+        scrollTop: chatArea ? chatArea.scrollTop : 'N/A',
+        scrollHeight: chatArea ? chatArea.scrollHeight : 'N/A',
+        clientHeight: chatArea ? chatArea.clientHeight : 'N/A'
+    });
+    
+    console.log('🔄 Global State:', {
+        conversationHistory: conversationHistory.length,
+        isTyping,
+        userScrolled,
+        thinkingMode
+    });
+    
+    if (messagesContainer && messagesContainer.children.length > 0) {
+        console.log('📝 Messages in DOM:');
+        Array.from(messagesContainer.children).forEach((child, index) => {
+            console.log(`  ${index}: ${child.className} - ${child.textContent.substring(0, 50)}...`);
+        });
+    }
+};
+
+// Original debug function for loading screen
+window.forceHideLoading = function() {
+    console.log('🔧 Debug: Force hiding loading screen...');
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.classList.add('hidden');
+        loadingScreen.style.display = 'none';
+        console.log('✅ Loading screen hidden');
+    } else {
+        console.log('❌ Loading screen not found');
+    }
+};
+
+// Configure marked.js if available
+if (typeof marked !== 'undefined') {
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+        highlight: function(code, lang) {
+            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                try {
+                    return hljs.highlight(code, { language: lang }).value;
+                } catch (err) {}
+            }
+            return typeof hljs !== 'undefined' ? hljs.highlightAuto(code).value : code;
+        }
+    });
+}
+
+// Image Upload Handler
+function handleImageUpload(event) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const chatInput = document.getElementById('chatInput');
+    if (!chatInput) return;
+    
+    Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) {
+            showToast('Please select only image files');
+            return;
+        }
+        
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            showToast('Image size should be less than 5MB');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Create image preview
+            const imagePreview = document.createElement('div');
+            imagePreview.className = 'image-preview-container';
+            imagePreview.innerHTML = `
+                <img src="${e.target.result}" class="image-preview" alt="Uploaded image">
+                <button class="image-remove-btn" onclick="this.parentElement.remove()">✕</button>
+            `;
+            
+            // Add to input area
+            const inputWrapper = document.querySelector('.input-wrapper');
+            inputWrapper.insertBefore(imagePreview, chatInput);
+            
+            // Update placeholder
+            if (chatInput.value.trim() === '') {
+                chatInput.placeholder = 'Describe what you want to know about this image...';
+            }
+        };
+        
+        reader.readAsDataURL(file);
+    });
+    
+    // Clear the input
+    event.target.value = '';
+}

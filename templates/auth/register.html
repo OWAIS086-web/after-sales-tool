@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Create Account - LUCID Enterprise AII</title>
+    
+    <!-- Load theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="animated-background">
+        <canvas id="dotsCanvas"></canvas>
+    </div>
+
+    <div class="auth-container">
+        <!-- Navigation -->
+        <nav class="auth-nav">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <img src="{{ url_for('static', filename='images/light-logo.svg') }}" alt="Insights AI" class="brand-logo" id="authLogo">
+                    <span class="brand-text">LUCID Enterprise AI</span>
+                </div>
+                <div class="nav-actions">
+                    <a href="{{ url_for('index') }}" class="nav-link">← Back to Home</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="auth-content">
+            <!-- Simple Form -->
+            <div class="auth-form-container register-form">
+                <form method="POST" class="auth-form register-form" id="registerForm">
+                    <div class="auth-header">
+                        <h1 class="auth-title">Create Your Account</h1>
+                        <!-- <p class="auth-subtitle">Join thousands of users transforming their business with AI-powered insights</p> -->
+                    </div>
+
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            <div class="flash-messages">
+                                {% for category, message in messages %}
+                                    <div class="flash-message {{ category }}">
+                                        <span class="flash-icon">
+                                            {% if category == 'error' %}⚠️{% else %}ℹ️{% endif %}
+                                        </span>
+                                        {{ message }}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
+
+                    <div class="form-group">
+                        <label for="username" class="form-label">
+                            <span class="label-icon">👤</span>
+                            Username
+                        </label>
+                        <div class="input-container">
+                            <input type="text" id="username" name="username" class="form-input" 
+                                   placeholder="Choose a unique username" required minlength="3" maxlength="20">
+                            <div class="input-focus-border"></div>
+                        </div>
+                        <div class="form-help">Unique Username</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email" class="form-label">
+                            <span class="label-icon">📧</span>
+                            Email Address
+                        </label>
+                        <div class="input-container">
+                            <input type="email" id="email" name="email" class="form-input" 
+                                   placeholder="Enter your email address" required>
+                            <div class="input-focus-border"></div>
+                        </div>
+                        <div class="form-help">Account Recovery & Updates</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="company_id" class="form-label">
+                            <span class="label-icon">🏢</span>
+                            Select Your Company
+                        </label>
+                        <div class="input-container">
+                            <select id="company_id" name="company_id" class="form-input" required>
+                                <option value="">Choose your company...</option>
+                                <option value="haval">Haval</option>
+                                <option value="kia">Kia</option>
+                                <option value="toyota">Toyota</option>
+                                <option value="lucid">Lucid Motors</option>
+                            </select>
+                            <div class="input-focus-border"></div>
+                        </div>
+                        <div class="form-help">Your Company</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">
+                            <span class="label-icon">🔒</span>
+                            Password
+                        </label>
+                        <div class="input-container">
+                            <input type="password" id="password" name="password" class="form-input" 
+                                   placeholder="Create a strong password" required minlength="6">
+                            <button type="button" class="password-toggle" onclick="togglePassword('password')">
+                                <span id="passwordToggleIcon">👁️</span>
+                            </button>
+                            <div class="input-focus-border"></div>
+                        </div>
+                        <div class="password-strength">
+                            <div class="strength-bar">
+                                <div class="strength-fill" id="strengthFill"></div>
+                            </div>
+                            <div class="strength-text" id="strengthText">Enter a password</div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirm_password" class="form-label">
+                            <span class="label-icon">🔒</span>
+                            Confirm Password
+                        </label>
+                        <div class="input-container">
+                            <input type="password" id="confirm_password" name="confirm_password" class="form-input" 
+                                   placeholder="Confirm your password" required>
+                            <button type="button" class="password-toggle" onclick="togglePassword('confirm_password')">
+                                <span id="confirmPasswordToggleIcon"></span>
+                            </button>
+                             <div class="strength-text" id="strengthText">Please Confirm</div>
+                            <div class="input-focus-border"></div>
+                        </div>
+                        <div class="form-help" id="passwordMatch"></div>
+                    </div>
+
+                    <div class="form-group submit-group">
+                        <button type="submit" class="auth-btn" id="submitBtn">
+                            <span class="btn-text">Create Account</span>
+                            <span class="btn-icon">→</span>
+                            <div class="btn-ripple"></div>
+                        </button>
+                    </div>
+
+                    <div class="auth-footer">
+                        <p>Already have an account? 
+                            <a href="{{ url_for('login') }}" class="auth-link">
+                                Sign in here
+                                <span class="link-arrow">→</span>
+                            </a>
+                        </p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme management - Load immediately
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+        
+        // Theme management
+        function loadTheme() {
+            try {
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                updateLogo(savedTheme);
+            } catch (error) {
+                console.warn('Theme loading error:', error);
+                // Fallback to dark theme
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        }
+
+        function toggleTheme() {
+            try {
+                const html = document.documentElement;
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                html.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateLogo(newTheme);
+            } catch (error) {
+                console.warn('Theme toggle error:', error);
+            }
+        }
+
+        function updateLogo(theme) {
+            try {
+                const logo = document.getElementById('authLogo');
+                
+                // Dark theme uses light logo, light theme uses dark logo
+                const logoFile = theme === 'dark' ? 'light-logo.svg' : 'dark-logo.svg';
+                
+                if (logo) {
+                    logo.src = `/static/images/${logoFile}`;
+                }
+            } catch (error) {
+                console.warn('Logo update error:', error);
+            }
+        }
+
+        // Password toggle
+        function togglePassword(inputId) {
+            const passwordInput = document.getElementById(inputId);
+            const toggleIcon = document.getElementById(inputId + 'ToggleIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.textContent = '👁️⃠';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.textContent = '👁️';
+            }
+        }
+
+        // Password strength checker
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            let feedback = '';
+            
+            if (password.length >= 8) strength += 1;
+            if (password.match(/[a-z]/)) strength += 1;
+            if (password.match(/[A-Z]/)) strength += 1;
+            if (password.match(/[0-9]/)) strength += 1;
+            if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
+            
+            const strengthFill = document.getElementById('strengthFill');
+            const strengthText = document.getElementById('strengthText');
+            
+            switch (strength) {
+                case 0:
+                case 1:
+                    strengthFill.style.width = '20%';
+                    strengthFill.style.background = '#ef4444';
+                    feedback = 'Very weak';
+                    break;
+                case 2:
+                    strengthFill.style.width = '40%';
+                    strengthFill.style.background = '#f97316';
+                    feedback = 'Weak';
+                    break;
+                case 3:
+                    strengthFill.style.width = '60%';
+                    strengthFill.style.background = '#eab308';
+                    feedback = 'Fair';
+                    break;
+                case 4:
+                    strengthFill.style.width = '80%';
+                    strengthFill.style.background = '#22c55e';
+                    feedback = 'Good';
+                    break;
+                case 5:
+                    strengthFill.style.width = '100%';
+                    strengthFill.style.background = '#16a34a';
+                    feedback = 'Strong';
+                    break;
+            }
+            
+            strengthText.textContent = feedback;
+            return strength;
+        }
+
+        // Password matching
+        function checkPasswordMatch() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const matchElement = document.getElementById('passwordMatch');
+            
+            if (confirmPassword === '') {
+                matchElement.textContent = '';
+                matchElement.style.color = '';
+                return true;
+            }
+            
+            if (password === confirmPassword) {
+                matchElement.textContent = '✓ Passwords match';
+                matchElement.style.color = '#16a34a';
+                return true;
+            } else {
+                matchElement.textContent = '✗ Passwords do not match';
+                matchElement.style.color = '#ef4444';
+                return false;
+            }
+        }
+
+        // Form animations
+        function initFormAnimations() {
+            const inputs = document.querySelectorAll('.form-input');
+            
+            inputs.forEach(input => {
+                input.addEventListener('focus', () => {
+                    input.parentElement.classList.add('focused');
+                });
+                
+                input.addEventListener('blur', () => {
+                    if (!input.value) {
+                        input.parentElement.classList.remove('focused');
+                    }
+                });
+                
+                if (input.value) {
+                    input.parentElement.classList.add('focused');
+                }
+            });
+        }
+
+        // Button ripple effect
+        function initButtonRipple() {
+            const authBtn = document.querySelector('.auth-btn');
+            
+            authBtn.addEventListener('click', function(e) {
+                const ripple = this.querySelector('.btn-ripple');
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+                
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.classList.add('active');
+                
+                setTimeout(() => {
+                    ripple.classList.remove('active');
+                }, 600);
+            });
+        }
+
+        // Form validation
+        function validateForm() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const companyId = document.getElementById('company_id').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            
+            if (!username || !email || !companyId || !password || !confirmPassword) {
+                alert('Please fill in all fields');
+                return false;
+            }
+            
+            if (password !== confirmPassword) {
+                alert('Passwords do not match');
+                return false;
+            }
+            
+            if (checkPasswordStrength(password) < 2) {
+                alert('Please choose a stronger password');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Initialize everything
+        window.addEventListener('load', () => {
+            loadTheme();
+            initFormAnimations();
+            initButtonRipple();
+            new InteractiveDots();
+            
+            // Fix select dropdown display with robust handling
+            const selectElement = document.getElementById('company_id');
+            if (selectElement) {
+                // Store original options text to prevent corruption
+                const originalOptions = Array.from(selectElement.options).map(option => ({
+                    value: option.value,
+                    text: option.textContent,
+                    disabled: option.disabled
+                }));
+                
+                // Function to restore options if corrupted
+                const restoreOptions = () => {
+                    selectElement.innerHTML = '';
+                    originalOptions.forEach(optionData => {
+                        const option = document.createElement('option');
+                        option.value = optionData.value;
+                        option.textContent = optionData.text;
+                        option.disabled = optionData.disabled;
+                        selectElement.appendChild(option);
+                    });
+                };
+                
+                // Force proper font rendering in dark mode
+                const fixSelectDisplay = () => {
+                    const theme = document.documentElement.getAttribute('data-theme');
+                    if (theme === 'dark') {
+                        // Check if text is corrupted
+                        const firstOption = selectElement.options[0];
+                        if (firstOption && (firstOption.textContent.includes('�') || firstOption.textContent.length !== originalOptions[0].text.length)) {
+                            restoreOptions();
+                        }
+                        
+                        selectElement.style.fontFamily = "'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                        selectElement.style.textRendering = "optimizeLegibility";
+                        selectElement.style.webkitFontSmoothing = "antialiased";
+                        selectElement.style.mozOsxFontSmoothing = "grayscale";
+                        
+                        // Force re-render
+                        selectElement.style.display = 'none';
+                        selectElement.offsetHeight; // Trigger reflow
+                        selectElement.style.display = '';
+                    }
+                };
+                
+                // Fix on load and theme change
+                setTimeout(fixSelectDisplay, 100);
+                
+                selectElement.addEventListener('change', function() {
+                    if (this.value) {
+                        this.style.color = 'var(--text-primary)';
+                    } else {
+                        this.style.color = 'var(--text-tertiary)';
+                    }
+                    setTimeout(fixSelectDisplay, 50);
+                });
+                
+                // Set initial color
+                if (!selectElement.value) {
+                    selectElement.style.color = 'var(--text-tertiary)';
+                }
+                
+                // Listen for theme changes
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+                            setTimeout(() => {
+                                restoreOptions();
+                                fixSelectDisplay();
+                            }, 150);
+                        }
+                    });
+                });
+                
+                observer.observe(document.documentElement, {
+                    attributes: true,
+                    attributeFilter: ['data-theme']
+                });
+            }
+            
+            // Password strength checking
+            document.getElementById('password').addEventListener('input', (e) => {
+                checkPasswordStrength(e.target.value);
+                checkPasswordMatch();
+            });
+            
+            // Password matching
+            document.getElementById('confirm_password').addEventListener('input', checkPasswordMatch);
+            
+            // Form submission
+            document.getElementById('registerForm').addEventListener('submit', function(e) {
+                if (!validateForm()) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // Add loading state
+                const submitBtn = document.getElementById('submitBtn');
+                submitBtn.classList.add('loading');
+                submitBtn.querySelector('.btn-text').textContent = 'Creating Account...';
+            });
+        });
+
+        // Interactive Dots Animation
+        class InteractiveDots {
+            constructor() {
+                this.canvas = document.getElementById('dotsCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.dots = [];
+                this.mouse = { x: 0, y: 0 };
+                this.maxDistance = 120;
+                this.dotCount = 100;
+                
+                this.init();
+                this.animate();
+                this.bindEvents();
+            }
+
+            init() {
+                this.resize();
+                this.createDots();
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            createDots() {
+                this.dots = [];
+                for (let i = 0; i < this.dotCount; i++) {
+                    this.dots.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * 1.5,
+                        vy: (Math.random() - 0.5) * 1.5,
+                        radius: Math.random() * 2.5 + 1.5,
+                        baseVx: (Math.random() - 0.5) * 0.8,
+                        baseVy: (Math.random() - 0.5) * 0.8
+                    });
+                }
+            }
+
+            bindEvents() {
+                window.addEventListener('resize', () => this.resize());
+                
+                document.addEventListener('mousemove', (e) => {
+                    this.mouse.x = e.clientX;
+                    this.mouse.y = e.clientY;
+                });
+
+                document.addEventListener('mouseleave', () => {
+                    this.mouse.x = -1000;
+                    this.mouse.y = -1000;
+                });
+            }
+
+            drawDot(dot) {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const dotColor = isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(163, 16, 16, 0.6)';
+                
+                this.ctx.beginPath();
+                this.ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+                this.ctx.fillStyle = dotColor;
+                this.ctx.fill();
+            }
+
+            drawLine(dot1, dot2, distance) {
+                const opacity = 1 - (distance / this.maxDistance);
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const lineColor = isDark ? `rgba(255, 255, 255, ${opacity * 0.3})` : `rgba(163, 16, 16, ${opacity * 0.3})`;
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(dot1.x, dot1.y);
+                this.ctx.lineTo(dot2.x, dot2.y);
+                this.ctx.strokeStyle = lineColor;
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+            }
+
+            getDistance(dot1, dot2) {
+                const dx = dot1.x - dot2.x;
+                const dy = dot1.y - dot2.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            updateDots() {
+                this.dots.forEach(dot => {
+                    dot.vx += dot.baseVx * 0.02;
+                    dot.vy += dot.baseVy * 0.02;
+                    
+                    dot.x += dot.vx;
+                    dot.y += dot.vy;
+
+                    if (dot.x < 0 || dot.x > this.canvas.width) {
+                        dot.vx *= -0.8;
+                        dot.baseVx = (Math.random() - 0.5) * 0.8;
+                    }
+                    if (dot.y < 0 || dot.y > this.canvas.height) {
+                        dot.vy *= -0.8;
+                        dot.baseVy = (Math.random() - 0.5) * 0.8;
+                    }
+
+                    dot.x = Math.max(0, Math.min(this.canvas.width, dot.x));
+                    dot.y = Math.max(0, Math.min(this.canvas.height, dot.y));
+
+                    const mouseDistance = this.getDistance(dot, this.mouse);
+                    if (mouseDistance < this.maxDistance && mouseDistance > 0) {
+                        const force = (this.maxDistance - mouseDistance) / this.maxDistance;
+                        const angle = Math.atan2(this.mouse.y - dot.y, this.mouse.x - dot.x);
+                        dot.vx += Math.cos(angle) * force * 0.05;
+                        dot.vy += Math.sin(angle) * force * 0.05;
+                    }
+
+                    dot.vx *= 0.98;
+                    dot.vy *= 0.98;
+                    
+                    dot.vx += (Math.random() - 0.5) * 0.01;
+                    dot.vy += (Math.random() - 0.5) * 0.01;
+                    
+                    const maxSpeed = 3;
+                    const speed = Math.sqrt(dot.vx * dot.vx + dot.vy * dot.vy);
+                    if (speed > maxSpeed) {
+                        dot.vx = (dot.vx / speed) * maxSpeed;
+                        dot.vy = (dot.vy / speed) * maxSpeed;
+                    }
+                });
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                for (let i = 0; i < this.dots.length; i++) {
+                    for (let j = i + 1; j < this.dots.length; j++) {
+                        const distance = this.getDistance(this.dots[i], this.dots[j]);
+                        if (distance < this.maxDistance) {
+                            this.drawLine(this.dots[i], this.dots[j], distance);
+                        }
+                    }
+
+                    const mouseDistance = this.getDistance(this.dots[i], this.mouse);
+                    if (mouseDistance < this.maxDistance) {
+                        this.drawLine(this.dots[i], this.mouse, mouseDistance);
+                    }
+                }
+
+                this.dots.forEach(dot => this.drawDot(dot));
+            }
+
+            animate() {
+                this.updateDots();
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+    </script>
+</body>
+</html>

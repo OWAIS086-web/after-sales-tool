@@ -1,0 +1,57 @@
+Flask
+Flask-Login
+flask-socketio
+python-dotenv
+requests
+beautifulsoup4
+lxml
+lxml_html_clean
+pandas
+transformers
+# torch and torchvision are installed separately in Dockerfile with CPU-only wheels
+# torch
+# torchvision
+sentence-transformers
+streamlit
+chromadb
+google-generativeai
+google-genai
+openai>=1.0.0,<2.0.0
+httpx
+yt_dlp
+selenium
+openpyxl
+tqdm
+redis
+PyYAML
+ruamel.yaml
+werkzeug
+praw
+fake-useragent
+requests-html
+groq
+langchain
+langchain-community
+langchain-core
+langchain-google-genai
+langchain-groq
+langchain-openai
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.100.0
+cryptography>=41.0.0
+sqlalchemy
+tabulate
+colorlog
+pyodbc>=4.0.39
+sqlalchemy>=2.0.0
+matplotlib
+pymysql
+apscheduler
+reportlab
+cryptography
+# Authentication & Google API
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client

@@ -1,0 +1,131 @@
+{
+  "pakwheels": [
+    "How do people compare Haval with other car models",
+    "What is the sentiment regarding prices of haval",
+    "Is there any discussion regarding off roading capabilities of Haval cars",
+    "Show me discussions regarding the latest HEV model of Haval if any",
+    "What marketing strategies do you suggest after going through people's opinions on pakwheels about Haval cars?",
+    "What are haval discussions of last month on pakwheels?",
+    "Could you compare prices of Haval with other cars and sentiment of people?",
+    "Compare people's opinions about Oshan and Haval",
+    "Could you give me an overview of the electric vehicle discussions on pakwheels?",
+    "What are the common complaints about Haval models?",
+    "Which latest cars are being dicussed the most on pakwheels?",
+    "Opinions about Haval after sales service?",
+    "How do people find Sazgaar motors service quality on Pakwheels?",
+    "Sentiments of people regarding latest cars in Pakistan like Cherry, Deepal etc? Any comparison with Haval"
+   
+  ],
+  "lucid": [
+    "What are people saying about Lucid Air efficiency?",
+    "What are the common complaints about Lucid vehicles?",
+    "How do people compare Lucid with other electric vehicles?",
+    "What is the sentiment regarding Lucid service and support?",
+    "What are the most discussed features of Lucid cars?",
+    "What are people's opinions on Lucid pricing?",
+    "What software issues are being discussed about Lucid?",
+    "How satisfied are Lucid owners with their vehicles?",
+    "What are the trending topics in Lucid owner discussions?",
+    "What marketing insights can we gather from Lucid forum discussions?",
+    "What are the top concerns Lucid owners have?",
+    "How do people rate Lucid's performance and acceleration?",
+    "What are the insurance and warranty discussions about Lucid?",
+    "What improvements do Lucid owners suggest?"
+  ],
+  "reddit_lucid": [
+    "What are people discussing about Lucid on Reddit?",
+    "What are the common complaints about Lucid on Reddit?",
+    "How do Lucid owners compare it with Tesla on Reddit?",
+    "What is the sentiment about Lucid's range and battery performance?",
+    "What are the trending topics in Lucid Reddit communities?",
+    "What software and update discussions are happening on Reddit?",
+    "How do people rate Lucid's charging infrastructure?",
+    "What are the most discussed Lucid models on Reddit?",
+    "What are people's opinions on Lucid's design and interior?",
+    "What customer service experiences are being shared on Reddit?",
+    "How do Lucid owners discuss maintenance and warranty?",
+    "What are the latest news and announcements about Lucid on Reddit?",
+    "What are the concerns about Lucid's market competition?",
+    "What marketing insights can we gather from Reddit Lucid discussions?"
+  ],
+  "whatsapp": [
+    "Show latest queries?",
+    "What are the common queries from customers on WhatsApp?",
+    "What prices are being quoted to customers",
+    "What is the sentiment regarding booking of haval cars?",
+    "After going through the whatsapp data, what do you think is the sentiment regarding Haval after-sales? are people satisfied?",
+    "What's the date span of our whatsapp data?",
+    "Show yesterday whatsapp queries",
+    "What are the common queries from customers on WhatsApp?",
+    "After going through the whatsapp aftersales data, what after-sales recommendations do you have for us?"
+
+  ],
+  "dealership": [
+    "How many orders are currently Open or In Progress?",
+    "Build executive dashboard KPIs for Lucid service operations.",
+    "Show total revenue by each dealership.",
+    "Rank dealerships by total revenue.",
+    "Identify vehicles due for major service based on mileage.",
+    "Show service advisor performance ranking by revenue.",
+    "Show number of open, closed, and in-progress jobs per dealership.",
+    "Identify high-value customers.",
+    "Which vehicles have had multiple repair orders?",
+    "Show me all repair orders with status 'Open' or 'In Progress'",
+    "Identify underperforming dealerships by revenue.",
+    "Which orders have mismatched statuses — e.g. RO is \"Closed\" but FSR is still \"In Progress\"?",
+    "Rank dealerships by customer satisfaction score.",
+    "How many 4-GOOD vs 5-EXCELLENT ratings are there?",
+    "Show monthly revenue trend for all dealerships."
+  ],
+  "facebook": [
+
+  ],
+  "finance": [
+    "How much net cash did we generate this week?",
+    "What are the major cash outflows due in the next 7 days?",
+    "Are we cash-flow positive this month?",
+    "What is the operating cash flow vs net profit gap?",
+    "How much cash is locked in receivables today?",
+    "What is our liquidity buffer if sales drop 15%?"
+  ],
+  "supplychain": [
+    "How should inventory of PHEV batteries, fuel pump, and oil filter be allocated across dealerships?",
+    "Which parts have the highest customs costs?",
+    "What is my projected inventory value by warehouse for next month?",
+    "When will I run out of stock for critical parts?",
+    "Which dealers are experiencing delays in delivery due to shortages of rims or fuel pumps?",
+    "What is the performance of Pakistan local suppliers?",
+    "Which parts have quality issues from suppliers?",
+    "How can we improve supplier relationships?",
+    "Which suppliers for Rims have the best on-time delivery record and quality rating?",    
+    "If the latest CKD shipment of engines is delayed by 10 days, how will production be affected?"
+
+
+  ],
+  "reddit": [
+    "How do people compare Haval with other models",
+    "What are the latest discussions about Haval on reddit",
+    "What are the common complaints people discuss about Haval car",
+    "What are the common complaints about our models?",
+    "What are the trending discussions in car communities?"
+   
+  ],
+  "cross_platform": [
+    "What are the common complaints regarding Haval across all platforms?",
+    "How do people compare Haval with other car models across platforms?",
+    "What is the overall sentiment about Haval H6 across all sources?",
+    "What are the trending topics about Haval across WhatsApp, Reddit, and PakWheels?",
+    "What are the most frequently asked questions about Haval across all platforms?",
+    "How does customer satisfaction vary across different platforms?",
+    "What are the key differences in feedback between WhatsApp and Reddit discussions?",
+    "What are the top concerns customers have about Haval across all channels?",
+    "Which features are most discussed across all platforms?",
+    "What marketing insights can we gather from cross-platform analysis?"
+  ],
+  "insights": [
+    "What are the key insights from recent customer data?",
+    "Which trends are emerging in the automotive market?",
+    "How can AI help improve our customer experience?",
+    "What predictive analytics can guide our strategy?"
+  ]
+}

@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard - Enterprise AI</title>
+
+    <!-- Load theme immediately to prevent flash -->
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/analytics_mobile_responsive.css') }}?v=2">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <!-- Animated Background -->
+    <div class="animated-background">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="clean-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="{{ url_for('static', filename='images/dark-logo.svg') }}" alt="Insights AI" class="brand-logo"
+                    id="navLogo">
+                <span class="brand-text">
+                    {% if selected_company == 'haval' %}
+                    HAVAL Enterprise AI
+                    {% elif selected_company == 'kia' %}
+                    KIA Insights
+                    {% else %}
+                    Insights AI
+                    {% endif %}
+                </span>
+            </div>
+            <span class="brand-badge">Analytics</span>
+
+            <div class="nav-actions">
+                {% if (is_admin or (user_permissions and user_permissions.get('pakwheels', True))) and selected_company != 'lucid' %}
+                <a href="{{ url_for('analysis') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z" />
+                    </svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('chatbot_advanced') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
+                    </svg>
+                    <span>Chatbot</span>
+                </a>
+
+<<<<<<< HEAD
+                <a href="{{ url_for('email_dashboard') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+                    </svg>
+                    <span>Email Intelligence</span>
+                </a>
+
+                {% if is_admin or (user_permissions and user_permissions.get('whatsapp', False)) %}
+=======
+                {% if (is_admin or (user_permissions and user_permissions.get('whatsapp', False))) and selected_company != 'lucid' %}
+>>>>>>> feat/lucid
+                 <a href="{{ url_for('view_whatsapp_chat') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.465 3.516" />
+                    </svg>
+                    <span>WhatsApp</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('settings_page') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+                    </svg>
+                    <span>Settings</span>
+                </a>
+
+                <a href="{{ url_for('logout') }}" class="nav-cta">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                    </svg>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+        <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Container -->
+    <div class="analytics-container">
+        <!-- Header Section -->
+        <div class="analytics-header">
+            <div class="header-content">
+                <h1 class="page-title">Analytics Dashboard</h1>
+                <p class="page-subtitle">Comprehensive insights and data analysis</p>
+            </div>
+
+            <!-- Source Selector -->
+            <div class="source-selector">
+                <div class="selector-label">Data Source:</div>
+                <div class="source-tabs">
+                    <button class="source-tab active" data-source="pakwheels">
+                        <span class="tab-text">PakWheels</span>
+                    </button>
+                    {% if is_admin or (user_permissions and user_permissions.get('whatsapp', False)) %}
+                    <button class="source-tab" data-source="whatsapp">
+                        <span class="tab-text">WhatsApp</span>
+                    </button>
+                    {% endif %}
+                    <button class="source-tab" data-source="reddit">
+                        <span class="tab-text">Reddit</span>
+                    </button>
+                    {% if is_admin or (user_permissions and user_permissions.get('lucid', False)) %}
+                    <button class="source-tab" data-source="lucid">
+                        <span class="tab-text">Lucid Forum</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="stats-overview">
+            <div class="stat-card primary">
+                <div class="stat-header">
+                    <div class="stat-icon">📊</div>
+                   
+                </div>
+                <div class="stat-value" id="total-posts">Loading...</div>
+                <div class="stat-label" id="total-posts-label">Total Posts</div>
+                <div class="stat-source-label" id="stat-source-1">PakWheels</div>
+            </div>
+
+            <div class="stat-card success">
+                <div class="stat-header">
+                    <div class="stat-icon">👥</div>
+     
+                </div>
+                <div class="stat-value" id="active-users">Loading...</div>
+                <div class="stat-label">Active Users</div>
+                <div class="stat-source-label" id="stat-source-2">PakWheels</div>
+            </div>
+
+            <div class="stat-card info">
+                <div class="stat-header">
+                    <div class="stat-icon">📝</div>
+                   
+                </div>
+                <div class="stat-value" id="new-users">Loading...</div>
+                <div class="stat-label">Topics/Queries</div>
+                <div class="stat-source-label" id="stat-source-3">PakWheels</div>
+            </div>
+
+            <div class="stat-card revenue">
+                <div class="stat-header">
+                    <div class="stat-icon">👤</div>
+                    
+                </div>
+                <div class="stat-value" id="unique-users-total">Loading...</div>
+                <div class="stat-label">Unique Users</div>
+                <div class="stat-source-label" id="stat-source-5">PakWheels</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <!-- Left Column: Large Charts -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Activity Chart (Posts/Messages Trend) -->
+                <div class="chart-card large">
+                    <div class="chart-header">
+                        <div class="chart-info">
+                            <h3 class="chart-title">Posts/Messages Trend</h3>
+                            <p class="chart-subtitle">Daily posts for PakWheels, messages for WhatsApp, posts for Reddit</p>
+                        </div>
+                        <div class="chart-actions">
+                            <div class="time-period-selector">
+                                <button class="time-period-btn active" data-period="7d" onclick="changeTimePeriod('7d')">7D</button>
+                                <button class="time-period-btn" data-period="1m" onclick="changeTimePeriod('1m')">1M</button>
+                                <button class="time-period-btn" data-period="3m" onclick="changeTimePeriod('3m')">3M</button>
+                                <button class="time-period-btn" data-period="1y" onclick="changeTimePeriod('1y')">1Y</button>
+                                <button class="time-period-btn" data-period="3y" onclick="changeTimePeriod('3y')">3Y</button>
+                            </div>
+                            <button class="chart-action-btn" onclick="downloadChart('activityChart')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Small Doughnut Charts -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Sentiment Analysis Chart -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div class="chart-info">
+                            <h3 class="chart-title">Sentiment Analysis</h3>
+                            <p class="chart-subtitle">Real sentiment breakdown from database</p>
+                        </div>
+                        <div class="chart-actions">
+                            <button class="chart-action-btn" onclick="downloadChart('conversionsChart')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="conversionsChart"></canvas>
+                    </div>
+                    <div class="chart-legend">
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #10b981;"></span>
+                            <span>Positive</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #ef4444;"></span>
+                            <span>Negative</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #6b7280;"></span>
+                            <span>Neutral</span>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/analytics_new.js') }}"></script>
+
+    <script>
+        // Initialize analytics with data
+        document.addEventListener('DOMContentLoaded', function () {
+            // Logo theme switching
+            function updateLogo() {
+                const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+                const logo = document.getElementById('navLogo');
+                if (logo) {
+                    const logoFile = theme === 'dark' ? 'light-logo.svg' : 'dark-logo.svg';
+                    logo.src = `/static/images/${logoFile}`;
+                }
+            }
+
+            // Update logo on theme change
+            const observer = new MutationObserver(function (mutations) {
+                mutations.forEach(function (mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+                        updateLogo();
+                    }
+                });
+            });
+
+            observer.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-theme']
+            });
+
+            // Initial logo update
+            updateLogo();
+
+            // Wait for Chart.js to load before initializing analytics
+            function waitForChart() {
+                if (typeof Chart !== 'undefined') {
+                    console.log('Chart.js loaded, initializing analytics...');
+                    if (typeof initializeAnalytics === 'function') {
+                        initializeAnalytics();
+                    }
+                } else {
+                    console.log('Waiting for Chart.js to load...');
+                    setTimeout(waitForChart, 100);
+                }
+            }
+
+            waitForChart();
+        });
+    </script>
+
+    <!-- Complaint Details Modal (Detail View) -->
+    <div id="complaintDetailModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Complaint Details</h2>
+                <button class="modal-close" onclick="closeComplaintDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="complaintDetails" style="padding: 20px;">
+                    <p>Loading complaint details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeComplaintDetailModal()">Close</button>
+                <button class="btn-primary" id="goToConversationBtn" onclick="goToConversation()" style="display: none;">
+                    Go to Conversation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Complaints Modal (List View) -->
+    <div id="allComplaintsModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2 class="modal-title">All Complaints</h2>
+                <button class="modal-close" onclick="closeAllComplaintsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="allComplaintsContent" style="padding: 20px;">
+                    <p>Loading complaints...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeAllComplaintsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #allComplaintsModal {
+            z-index: 1000;
+        }
+
+        #complaintDetailModal {
+            z-index: 2000;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .btn-primary, .btn-secondary {
+            padding: 10px 16px;
+            border-radius: var(--radius);
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-quaternary);
+        }
+
+        .complaint-detail-item {
+            margin-bottom: 16px;
+        }
+
+        .complaint-detail-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .complaint-detail-value {
+            font-size: 14px;
+            color: var(--text-primary);
+            word-break: break-word;
+            line-height: 1.5;
+        }
+    </style>
+
+    <script>
+        let currentComplaintData = null;
+        let currentComplaintIndex = null;
+
+        function showComplaintModal(complaint, source) {
+            currentComplaintData = { complaint, source };
+            
+            const modal = document.getElementById('complaintDetailModal');
+            const detailsDiv = document.getElementById('complaintDetails');
+            
+            // Extract identifier - try multiple fields
+            const identifier = complaint.author || complaint.customer || complaint.user || complaint.customer_name || 'Unknown';
+            
+            // Format complaint details
+            let html = `
+                <div class="complaint-detail-item">
+                    <div class="complaint-detail-label">User/Author</div>
+                    <div class="complaint-detail-value">${identifier}</div>
+                </div>
+                <div class="complaint-detail-item">
+                    <div class="complaint-detail-label">Source</div>
+                    <div class="complaint-detail-value">${source.toUpperCase()}</div>
+                </div>
+                <div class="complaint-detail-item">
+                    <div class="complaint-detail-label">Complaint</div>
+                    <div class="complaint-detail-value">${complaint.text || complaint.message || complaint.complaint || 'No details available'}</div>
+                </div>
+            `;
+            
+            if (complaint.created_at || complaint.timestamp || complaint.date) {
+                html += `
+                    <div class="complaint-detail-item">
+                        <div class="complaint-detail-label">Date</div>
+                        <div class="complaint-detail-value">${complaint.created_at || complaint.timestamp || complaint.date || 'Unknown'}</div>
+                    </div>
+                `;
+            }
+            
+            detailsDiv.innerHTML = html;
+            modal.style.display = 'flex';
+            document.getElementById('goToConversationBtn').style.display = 'block';
+        }
+
+        function closeComplaintDetailModal() {
+            const modal = document.getElementById('complaintDetailModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            currentComplaintData = null;
+            currentComplaintIndex = null;
+        }
+
+        function closeAllComplaintsModal() {
+            const modal = document.getElementById('allComplaintsModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        function closeComplaintModal() {
+            // For backward compatibility
+            closeComplaintDetailModal();
+        }
+
+        function goToConversation() {
+            if (!currentComplaintData) {
+                alert('Unable to identify conversation');
+                return;
+            }
+            
+            const { complaint, source } = currentComplaintData;
+            
+            // Try multiple fields to get identifier
+            let identifier = complaint.author || complaint.customer || complaint.user || complaint.customer_name;
+            
+            if (!identifier || identifier === 'Unknown') {
+                alert('Unable to identify conversation - no user/author found');
+                console.error('Complaint data:', complaint);
+                return;
+            }
+            
+            // Encode identifier for URL
+            const encodedId = encodeURIComponent(identifier);
+            
+            console.log('Going to conversation for:', identifier, 'source:', source);
+            
+            // Close modal before navigating
+            closeComplaintModal();
+            
+            if (source === 'pakwheels') {
+                // Fetch PakWheels conversation
+                fetch(`/api/conversation/pakwheels/${encodedId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Store conversation data and navigate
+                            sessionStorage.setItem('pakwheels_conversation', JSON.stringify(data));
+                            window.location.href = `/view_pakwheels_conversation/${encodedId}`;
+                        } else {
+                            alert('Error loading conversation: ' + (data.error || 'Unknown error'));
+                            console.error('API error:', data);
+                        }
+                    })
+                    .catch(err => {
+                        alert('Error: ' + err.message);
+                        console.error('Fetch error:', err);
+                    });
+            } else if (source === 'whatsapp') {
+                // Fetch WhatsApp conversation
+                fetch(`/api/conversation/whatsapp/${encodedId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Store conversation data and navigate
+                            sessionStorage.setItem('whatsapp_conversation', JSON.stringify(data));
+                            window.location.href = `/view_whatsapp_by_customer/${encodedId}`;
+                        } else {
+                            alert('Error loading conversation: ' + (data.error || 'Unknown error'));
+                            console.error('API error:', data);
+                        }
+                    })
+                    .catch(err => {
+                        alert('Error: ' + err.message);
+                        console.error('Fetch error:', err);
+                    });
+            } else if (source === 'reddit') {
+                // Fetch Reddit conversation
+                fetch(`/api/conversation/reddit/${encodedId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Store conversation data and navigate
+                            sessionStorage.setItem('reddit_conversation', JSON.stringify(data));
+                            window.location.href = `/view_reddit_conversation/${encodedId}`;
+                        } else {
+                            alert('Error loading conversation: ' + (data.error || 'Unknown error'));
+                            console.error('API error:', data);
+                        }
+                    })
+                    .catch(err => {
+                        alert('Error: ' + err.message);
+                        console.error('Fetch error:', err);
+                    });
+            } else {
+                alert('Unknown source: ' + source);
+            }
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const detailModal = document.getElementById('complaintDetailModal');
+            const listModal = document.getElementById('allComplaintsModal');
+            
+            if (event.target === detailModal) {
+                closeComplaintDetailModal();
+            }
+            if (event.target === listModal) {
+                closeAllComplaintsModal();
+            }
+        });
+
+        // Close modal when pressing Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeComplaintDetailModal();
+                closeAllComplaintsModal();
+            }
+        });
+
+        // Close modal when navigating away
+        window.addEventListener('beforeunload', function() {
+            closeComplaintDetailModal();
+            closeAllComplaintsModal();
+        });
+    </script>
+</body>
+
+</html>

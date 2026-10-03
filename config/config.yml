@@ -1,0 +1,471 @@
+# Flask Application Configuration
+# This file controls all server settings and can be modified through the web interface
+
+server:
+  # Server connection settings
+  host: "0.0.0.0"  # Server host (0.0.0.0 for all interfaces, 127.0.0.1 for localhost only)
+  port: 10000        # Server port
+  debug: false       # Enable/disable debug mode
+  # Auto-reload settings
+  auto_reload: false  # Auto-reload on file changes
+  threaded: true     # Enable threading
+  # Security settings
+  secret_key: ""     # Leave empty to auto-generate, or set a custom secret key
+  # Session settings
+  session_timeout: 86400  # Session timeout in seconds (24 hours)
+  permanent_session: true
+
+# Database settings
+database:
+  # SQLite database file path
+  db_file: "data/marketing.db"
+
+  # Connection settings
+  timeout: 30        # Connection timeout in seconds
+  check_same_thread: false
+
+# Logging settings
+logging:
+  # Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "WARNING"
+
+  # Log file settings
+  log_dir: "logs"
+  max_log_size: 10485760  # 10MB in bytes
+  backup_count: 5
+
+  # Console logging
+  console_logging: true
+
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+
+# AI Pipeline settings
+ai:
+  # Pipeline processing settings
+  max_concurrent_processes: 2
+
+  # Embedding settings
+  embedding_batch_size: 32
+
+  # Vector store settings
+  vector_store_path: "chroma_storage"
+
+  # Model settings
+  model_cache_dir: "models"
+
+# Finance SQL Agent settings
+finance:
+  # Database settings
+  database:
+    type: "sqlite"
+    path: "../../data/haval_ceo_finance.db"  # Relative to ai/finance/ directory
+    included_tables: []
+    excluded_tables: []
+  # Metadata folder
+  metadata_folder: "haval_fin_metadata"  # Relative to ai/finance/ directory
+  # LangChain Agent settings
+  agent:
+    type: "zero-shot-react-description"
+    max_iterations: 12
+    max_execution_time: 120
+    early_stopping_method: "generate"
+    verbose: false
+    return_intermediate_steps: false
+
+  # SQL Toolkit settings
+  toolkit:
+    top_k: 3
+    sample_rows_in_table_info: 0
+
+# Supply Chain SQL Agent settings
+supplychain:
+  # Database settings
+  database:
+    type: "sqlite"
+    path: "../../data/haval_supply_chain.db"  # Relative to ai/SupplyChain/ directory
+    included_tables: []
+    excluded_tables: []
+  # Metadata folder
+  metadata_folder: "metadata"  # Relative to ai/SupplyChain/ directory
+  # LangChain Agent settings
+  agent:
+    type: "zero-shot-react-description"
+    max_iterations: 12
+    max_execution_time: 120
+    early_stopping_method: "generate"
+    verbose: false
+    return_intermediate_steps: false
+
+  # SQL Toolkit settings
+  toolkit:
+    top_k: 3
+    sample_rows_in_table_info: 0
+
+  # LLM settings (timeout/retry for agent)
+  llm:
+    request_timeout: 60
+    max_retries: 3
+
+# Web scraping settings
+scraping:
+  # Request settings
+  request_timeout: 30
+  max_retries: 3
+  retry_delay: 1
+
+  # Rate limiting
+  requests_per_second: 2
+
+  # User agent
+  user_agent: " Marketing Tool Bot 2.0"
+
+# API settings
+api:
+  # Rate limiting
+  rate_limit_per_minute: 60
+
+  # CORS settings
+  cors_enabled: false
+  cors_origins: ["http://localhost:3000"]
+
+# File upload settings
+uploads:
+  # Maximum file size in bytes (50MB)
+  max_file_size: 52428800
+
+  # Allowed file extensions
+  allowed_extensions: [".json", ".csv", ".txt", ".xlsx"]
+  # Upload directory
+  upload_dir: "uploads"
+
+# Performance settings
+performance:
+  # Cache settings
+  cache_enabled: true
+  cache_timeout: 300  # 5 minutes
+  # Compression
+  compression_enabled: true
+  compression_level: 6
+
+# Development settings
+development:
+  # Hot reload
+  hot_reload: true
+
+  # Profiling
+  profiling_enabled: false
+
+  # Debug toolbar
+  debug_toolbar: false
+
+# Production settings (override development settings when in production)
+production:
+  debug: false
+  auto_reload: false
+  hot_reload: false
+  profiling_enabled: false
+  debug_toolbar: false
+  console_logging: true
+
+  # Security enhancements for production
+  session_cookie_secure: true
+  session_cookie_httponly: true
+  session_cookie_samesite: "Lax"
+
+# Feature flags
+features:
+  # Enable/disable specific features
+  wati_integration: true
+  pakwheels_scraping: true
+  analytics_dashboard: true
+  export_functionality: true
+
+  # Experimental features
+  experimental_ai_features: false
+  beta_ui_components: false
+
+# =============================================================================
+# AUTOMATED SCRAPING SCHEDULER
+# =============================================================================
+# Schedules automatic data collection from PakWheels, Reddit, and WATI
+# Admin access: Only users listed in admin_users can access /admin/scheduler
+# =============================================================================
+scheduling:
+  # Master enable/disable switch
+  enabled: true
+
+  # Timezone for all scheduled jobs (use your local timezone)
+  timezone: "Asia/Karachi"
+
+  # Job persistence database (stores scheduled jobs across restarts)
+  job_store:
+    type: "sqlite"
+    path: "data/scheduler_jobs.db"
+
+  # Execution settings
+  max_concurrent_jobs: 1           # Only 1 job at a time (prevents pipeline conflicts)
+  misfire_grace_time: 3600         # Run job if missed by < 1 hour (3600 seconds)
+  coalesce: true                   # Combine multiple missed runs into one
+
+  # Admin users who can access /admin/scheduler
+  # Simply add username and email here - no database changes needed
+  # EMAIL is the source of truth - if email matches, access is granted
+  # Change these values before deployment
+  admin_users:
+  - username: "ubi"
+    email: "obaid.nasir@visionrdai.com"
+  - username: "awais"
+    email: "awaissaeedsaib@gmail.com"
+
+  - username: "lucid_admin"
+    email: "lucid_admin@visionrdai.com"
+
+  # Add more admins below (just copy the format):
+  - username: "ali"
+    email: "ali.iqbal@sazgarautos.com"
+  - username: "ammar"
+    email: "Ammarhameed@sazgarautos.com"
+
+  # Scheduled job definitions
+  jobs:
+    # PakWheels scraping - runs monthly on 1st at 3:00 AM
+    pakwheels_haval:
+      enabled: false
+      company_id: "haval"
+      type: "pakwheels"
+
+      schedule:
+        frequency: daily
+        time: "13:55"
+      parameters:
+        max_posts: '1000'          # Maximum posts to scrape per URL
+        fetch_mode: "latest"       # Options: latest | oldest
+
+    # Reddit scraping - runs monthly on 1st at 4:00 AM
+    reddit_haval:
+      enabled: false
+      company_id: "haval"
+      type: "reddit"
+
+      schedule:
+        frequency: daily
+        time: "00:00"
+      parameters:
+        max_posts: '100'
+        include_comments: true
+        search_query: "haval car"  # Search query for Reddit
+
+    # WATI/WhatsApp import - runs daily at 5:00 PM
+    wati_haval:
+      enabled: false
+      company_id: "haval"
+      type: "wati"
+
+      schedule:
+        frequency: daily
+        time: "15:40"
+      parameters:
+        time_period: "24h"         # Options: 24h | 7d | 30d
+
+    # Lucid Forum scraping - runs daily at 2:00 AM
+    lucid_haval:
+      enabled: false
+      company_id: "haval"
+      type: "lucid"
+
+      schedule:
+        frequency: daily
+        time: "02:00"
+      parameters:
+        max_threads: '10'          # Maximum threads to scrape
+        max_posts: '50'            # Maximum posts per thread
+
+    # Lucid Company - Lucid Forum scraping - runs daily at 3:00 AM
+    lucid_lucid:
+      enabled: false
+      company_id: "lucid"
+      type: "lucid"
+
+      schedule:
+        frequency: daily
+        time: "03:00"
+      parameters:
+        max_threads: '10'          # Maximum threads to scrape
+        max_posts: '50'            # Maximum posts per thread
+
+    # Reddit Lucid scraping - runs daily at 4:00 AM
+    reddit_lucid:
+      enabled: false
+      company_id: "lucid"
+      type: "reddit_lucid"
+
+      schedule:
+        frequency: daily
+        time: "04:00"
+      parameters:
+        max_posts: '100'           # Maximum posts per subreddit
+        delay: '5'                 # Delay between subreddits in seconds
+
+# Company-specific settings
+companies:
+  # Default company for new users
+  default_company: "haval"
+
+  # Company-specific feature access
+  company_features:
+    haval:
+    - "wati_integration"
+    - "pakwheels_scraping"
+    - "analytics_dashboard"
+    kia:
+    - "pakwheels_scraping"
+    - "analytics_dashboard"
+    mg:
+    - "pakwheels_scraping"
+    - "analytics_dashboard"
+    lucid:
+    - "lucid_scraping"
+    - "analytics_dashboard"
+
+# =============================================================================
+# DATA SOURCE CONFIGURATION
+# =============================================================================
+# Centralized configuration for all data sources available in the chatbot
+# Admin can enable/disable these per-user in the Control Users panel
+# =============================================================================
+data_sources:
+  pakwheels:
+    id: "pakwheels"
+    display_name: "Pakwheels"
+    description: "PakWheels forum discussions and reviews"
+    enabled_by_default: true
+    is_demo: false
+
+  reddit:
+    id: "reddit"
+    display_name: "Reddit"
+    description: "Reddit community discussions"
+    enabled_by_default: true
+    is_demo: false
+
+  lucid:
+    id: "lucid"
+    display_name: "Lucid Forum"
+    description: "Lucid Forum owner discussions"
+    enabled_by_default: true
+    is_demo: false
+
+  reddit_lucid:
+    id: "reddit_lucid"
+    display_name: "Reddit Lucid"
+    description: "Reddit Lucid Motors discussions (r/lucidmotors, r/LUCID)"
+    enabled_by_default: true
+    is_demo: false
+
+  whatsapp:
+    id: "whatsapp"
+    display_name: "WhatsApp"
+    description: "WhatsApp customer conversations"
+    enabled_by_default: true
+    is_demo: false
+
+  cross_platform:
+    id: "cross_platform"
+    display_name: "Cross-Platform"
+    description: "Search across PakWheels, Reddit, Lucid Forum, and WhatsApp"
+    enabled_by_default: true
+    is_demo: false
+
+  email:
+    id: "email"
+    display_name: "Gmail"
+    description: "Search your Gmail emails with AI"
+    enabled_by_default: true
+    is_demo: false
+    requires_auth: true
+
+  dealership:
+    id: "dealership"
+    display_name: "DMS"
+    description: "Dealership Management System"
+    enabled_by_default: true
+    is_demo: false
+
+  finance:
+    id: "finance"
+    display_name: "Finance (Demo)"
+    description: "Financial data analysis"
+    enabled_by_default: false
+    is_demo: true
+
+  facebook:
+    id: "facebook"
+    display_name: "Facebook (Demo)"
+    description: "Facebook social media"
+    enabled_by_default: false
+    is_demo: true
+
+  supplychain:
+    id: "supplychain"
+    display_name: "Supply Chain (Demo)"
+    description: "Supply chain analytics"
+    enabled_by_default: false
+    is_demo: true
+
+  insights:
+    id: "insights"
+    display_name: "AI Insights"
+    description: "General AI-powered insights"
+    enabled_by_default: true
+    is_demo: false
+
+# Backup settings
+backup:
+  # Automatic backup settings
+  auto_backup: true
+  backup_interval: 86400  # 24 hours in seconds
+  backup_retention: 7     # Keep backups for 7 days
+  backup_dir: "backups"
+
+  # What to backup
+  backup_database: true
+  backup_logs: true
+  backup_uploads: true
+  backup_config: true
+
+# Monitoring settings
+monitoring:
+  # Health check settings
+  health_check_enabled: true
+  health_check_interval: 60  # seconds
+  # Metrics collection
+  metrics_enabled: true
+  metrics_retention: 2592000  # 30 days in seconds
+  # Alerting (future feature)
+  alerting_enabled: false
+  alert_email: ""
+
+# Maintenance settings
+maintenance:
+  # Maintenance mode
+  maintenance_mode: false
+  maintenance_message: "System is under maintenance. Please try again later."
+
+  # Allowed IPs during maintenance (admin access)
+  maintenance_allowed_ips: ["127.0.0.1", "::1"]
+
+# Version and metadata
+app:
+  name: "Marketing Tool"
+  version: "2.0.0"
+  description: "AI-powered marketing insights and customer engagement platform"
+  author: "visionrd Marketing Team"
+
+  # Build information (auto-updated)
+  build_date: ""
+  build_hash: ""
+
+send-grid credentials:
+twilio_code: 9158KL4T1VQPLVW1GDVBRTF4
+twilio_username: obaidnasir01@gmail.com

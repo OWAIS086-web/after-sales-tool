@@ -1,0 +1,167 @@
+{
+  "table_name": "Inventory",
+  "business_name": "Inventory Management",
+  "description": "Real-time stock levels across 5 warehouses: 3 Pakistan warehouses (Karachi Main Hub, Lahore Assembly Plant, Islamabad Central) and 2 China export hubs (Shanghai Export, Guangzhou Export). Tracks quantity on hand, reserved quantity, stock value in USD and PKR, turnover rates, and stock status.",
+  "primary_key": "inventory_id",
+  "common_use_cases": [
+    "Check low stock or out-of-stock items in Pakistan warehouses",
+    "Find overstock situations",
+    "Calculate total inventory value in PKR",
+    "Analyze stock by warehouse location (Pakistan vs China)",
+    "Monitor inventory turnover rates",
+    "Identify parts to transfer from China to Pakistan"
+  ],
+  "columns": [
+    {
+      "name": "inventory_id",
+      "type": "INTEGER",
+      "description": "Unique inventory record identifier",
+      "primary_key": true,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "part_id",
+      "type": "INTEGER",
+      "description": "Foreign key to Parts table",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "is_foreign_key": true
+    },
+    {
+      "name": "warehouse_location",
+      "type": "TEXT",
+      "description": "Warehouse where inventory is stored",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Karachi Main Hub", "Lahore Assembly Plant", "Islamabad Central", "Shanghai Export", "Guangzhou Export"],
+      "business_rule": "Pakistan warehouses handle local distribution and assembly. China warehouses stage exports to Pakistan with 3-4 week lead times including customs clearance"
+    },
+    {
+      "name": "quantity_on_hand",
+      "type": "INTEGER",
+      "description": "Total physical quantity in warehouse",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "quantity_reserved",
+      "type": "INTEGER",
+      "description": "Quantity reserved for orders",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "quantity_available",
+      "type": "INTEGER",
+      "description": "Available quantity (on_hand - reserved) [VIRTUAL COLUMN]",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "computed": true
+    },
+    {
+      "name": "bin_location",
+      "type": "TEXT",
+      "description": "Specific storage bin location",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "examples": ["BEI-A-12", "SHA-B-05", "GUA-C-23"]
+    },
+    {
+      "name": "last_stock_check_date",
+      "type": "DATE",
+      "description": "Date of last physical inventory count",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "stock_value_usd",
+      "type": "REAL",
+      "description": "Total value of inventory position in USD",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "stock_value_pkr",
+      "type": "REAL",
+      "description": "Total value of inventory position in PKR (for Pakistan CEO reporting)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "business_rule": "PKR value calculated at ~280 PKR/USD rate. Total Pakistan warehouse inventory ~PKR 100+ billion"
+    },
+    {
+      "name": "turnover_rate",
+      "type": "REAL",
+      "description": "Annual inventory turnover rate",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "range": "2-12x per year"
+    },
+    {
+      "name": "days_of_supply",
+      "type": "INTEGER",
+      "description": "Number of days current stock will last",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "range": "10-90 days"
+    },
+    {
+      "name": "stock_status",
+      "type": "TEXT",
+      "description": "Current stock level status",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["In Stock", "Low Stock", "Out of Stock", "Overstock"]
+    },
+    {
+      "name": "last_movement_date",
+      "type": "DATE",
+      "description": "Date of last inventory movement",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "last_movement_type",
+      "type": "TEXT",
+      "description": "Type of last inventory movement",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "examples": ["Receipt", "Issue", "Transfer", "Adjustment", "Return"]
+    }
+  ],
+  "relationships": [
+    {
+      "related_table": "Parts",
+      "join_column": "part_id",
+      "relationship_type": "many_to_one",
+      "description": "Many inventory positions for one part"
+    }
+  ],
+  "business_rules": [
+    "Low Stock status triggers automatic reorder",
+    "Out of Stock requires urgent procurement action",
+    "Overstock suggests need for demand planning review",
+    "Safety stock levels vary by part criticality",
+    "Each part can have inventory in multiple warehouses"
+  ],
+  "sample_queries": [
+    "SELECT COUNT(*) FROM Inventory WHERE stock_status='Low Stock'",
+    "SELECT warehouse_location, SUM(stock_value_usd) FROM Inventory GROUP BY warehouse_location",
+    "SELECT part_id, SUM(quantity_on_hand) FROM Inventory GROUP BY part_id",
+    "SELECT * FROM Inventory WHERE stock_status='Overstock' ORDER BY stock_value_usd DESC"
+  ]
+}

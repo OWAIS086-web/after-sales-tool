@@ -1,0 +1,277 @@
+{
+  "table_name": "Shipments",
+  "business_name": "Shipment Tracking",
+  "description": "Delivery tracking for international and domestic shipments with customs clearance data. Tracks shipments from international suppliers (with customs duties 15-25%) and Pakistan local suppliers. Includes quality inspection, carrier performance, and import tax tracking. Supports both Pakistan local carriers (TCS, Leopards, M&P) and international carriers (DHL, FedEx, Maersk).",
+  "primary_key": "shipment_id",
+  "common_use_cases": [
+    "Track late or delayed shipments",
+    "Monitor customs clearance delays for imports",
+    "Calculate total customs duty burden in PKR",
+    "Analyze delivery performance by supplier",
+    "Identify damaged or rejected shipments",
+    "Compare Pakistan vs international carrier costs",
+    "Track shipping costs in PKR"
+  ],
+  "columns": [
+    {
+      "name": "shipment_id",
+      "type": "INTEGER",
+      "description": "Unique shipment identifier",
+      "primary_key": true,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "tracking_number",
+      "type": "TEXT",
+      "description": "Carrier tracking number (format: TRK-NNNNNN-OOOO)",
+      "primary_key": false,
+      "searchable": true,
+      "common_filters": true,
+      "examples": ["TRK-123456-789", "TRK-987654-321"]
+    },
+    {
+      "name": "order_id",
+      "type": "INTEGER",
+      "description": "Foreign key to Purchase_Orders table",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "is_foreign_key": true
+    },
+    {
+      "name": "supplier_id",
+      "type": "INTEGER",
+      "description": "Foreign key to Suppliers table",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "is_foreign_key": true
+    },
+    {
+      "name": "part_id",
+      "type": "INTEGER",
+      "description": "Foreign key to Parts table",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "is_foreign_key": true
+    },
+    {
+      "name": "shipment_date",
+      "type": "DATE",
+      "description": "Date shipment left supplier facility",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "expected_arrival_date",
+      "type": "DATE",
+      "description": "Expected arrival date at destination",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "actual_arrival_date",
+      "type": "DATE",
+      "description": "Actual arrival date (NULL if in transit)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "origin_location",
+      "type": "TEXT",
+      "description": "Shipment origin (usually supplier country)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Germany", "Japan", "China", "USA"]
+    },
+    {
+      "name": "destination_warehouse",
+      "type": "TEXT",
+      "description": "Destination warehouse",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Beijing Main", "Shanghai East", "Guangzhou South"]
+    },
+    {
+      "name": "quantity_shipped",
+      "type": "INTEGER",
+      "description": "Quantity shipped in units",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "quantity_received",
+      "type": "INTEGER",
+      "description": "Quantity successfully received",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "quantity_damaged",
+      "type": "INTEGER",
+      "description": "Quantity damaged during shipment",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "quantity_rejected",
+      "type": "INTEGER",
+      "description": "Quantity rejected due to quality issues",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true
+    },
+    {
+      "name": "shipment_status",
+      "type": "TEXT",
+      "description": "Current shipment status",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Preparing", "Shipped", "In Transit", "Customs", "Customs Cleared", "Arrived", "Delivered", "Delayed"],
+      "business_rule": "For imports: Preparing → Shipped → In Transit → Customs → Customs Cleared → Arrived → Delivered. Customs clearance typically takes 3-10 days in Pakistan"
+    },
+    {
+      "name": "carrier_name",
+      "type": "TEXT",
+      "description": "Shipping carrier/logistics provider",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["TCS (Pvt) Ltd", "Leopards Courier", "M&P Express Logistics", "DHL Express", "FedEx International", "Maersk Shipping"],
+      "business_rule": "Pakistan local carriers: TCS, Leopards, M&P, Pakistan Post, Swyft, Call Courier. International: DHL, FedEx, Maersk, MSC, COSCO, SF Express, UPS"
+    },
+    {
+      "name": "shipping_cost_usd",
+      "type": "REAL",
+      "description": "Total shipping cost in USD",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "range": "$200 - $5,000"
+    },
+    {
+      "name": "shipping_cost_pkr",
+      "type": "REAL",
+      "description": "Total shipping cost in Pakistani Rupees (for CEO reporting)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "business_rule": "PKR costs calculated at ~280 PKR/USD. Total shipping costs tracked in PKR for Pakistan operations"
+    },
+    {
+      "name": "customs_duty_usd",
+      "type": "REAL",
+      "description": "Import customs duty paid in USD (only for international shipments)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "business_rule": "Applies only to imports from outside Pakistan. Total customs burden ~$19M USD or PKR 5.4 billion"
+    },
+    {
+      "name": "customs_duty_pkr",
+      "type": "REAL",
+      "description": "Import customs duty paid in PKR (primary reporting currency)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "business_rule": "Pakistan CEO tracks customs in PKR. This is a major cost component (15-25% of import value)"
+    },
+    {
+      "name": "import_tax_rate",
+      "type": "REAL",
+      "description": "Import tax rate applied (as decimal, e.g., 0.20 = 20%)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "range": "0.15 - 0.25 (15-25%)",
+      "business_rule": "Pakistan import duties on auto parts typically range 15-25%. Average rate ~19.9%"
+    },
+    {
+      "name": "customs_clearance_date",
+      "type": "DATE",
+      "description": "Date when shipment cleared Pakistan customs",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false,
+      "business_rule": "Typically 3-10 days after shipment arrives in Karachi port. Critical for lead time calculations"
+    },
+    {
+      "name": "delivery_performance",
+      "type": "TEXT",
+      "description": "Delivery timeliness classification",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["On Time", "Early", "Late"]
+    },
+    {
+      "name": "delay_days",
+      "type": "INTEGER",
+      "description": "Number of days delayed (0 if on time, negative if early)",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    },
+    {
+      "name": "quality_inspection_status",
+      "type": "TEXT",
+      "description": "Quality inspection result",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": true,
+      "examples": ["Pending", "Passed", "Failed", "Conditional"]
+    },
+    {
+      "name": "inspection_notes",
+      "type": "TEXT",
+      "description": "Quality inspection comments",
+      "primary_key": false,
+      "searchable": false,
+      "common_filters": false
+    }
+  ],
+  "relationships": [
+    {
+      "related_table": "Purchase_Orders",
+      "join_column": "order_id",
+      "relationship_type": "many_to_one",
+      "description": "Many shipments for one order"
+    },
+    {
+      "related_table": "Suppliers",
+      "join_column": "supplier_id",
+      "relationship_type": "many_to_one",
+      "description": "Many shipments from one supplier"
+    },
+    {
+      "related_table": "Parts",
+      "join_column": "part_id",
+      "relationship_type": "many_to_one",
+      "description": "Many shipments for one part"
+    }
+  ],
+  "business_rules": [
+    "Late deliveries impact supplier OTD rating",
+    "Failed quality inspections trigger supplier review",
+    "Damaged shipments require insurance claims",
+    "Rejected quantities impact supplier quality rating",
+    "Delivery performance affects future supplier selection"
+  ],
+  "sample_queries": [
+    "SELECT COUNT(*) FROM Shipments WHERE delivery_performance='Late'",
+    "SELECT carrier_name, AVG(shipping_cost_usd) FROM Shipments GROUP BY carrier_name",
+    "SELECT * FROM Shipments WHERE quantity_damaged > 0 OR quantity_rejected > 0",
+    "SELECT supplier_id, AVG(delay_days) FROM Shipments WHERE shipment_status='Delivered' GROUP BY supplier_id"
+  ]
+}

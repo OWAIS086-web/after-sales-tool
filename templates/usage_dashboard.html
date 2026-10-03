@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Usage Dashboard - Admin</title>
+    
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='../favicon.ico') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/usage_mobile_responsive.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="clean-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="{{ url_for('static', filename='images/dark-logo.svg') }}" alt="Insights AI" class="brand-logo" id="navLogo">
+                          <span class="brand-text">
+                    {% if selected_company == 'haval' %}
+                    HAVAL Enterprise AI
+                    {% elif selected_company == 'kia' %}
+                    KIA Insights
+                     {% elif selected_company == 'lucid' %}
+                    LUCID Enterprise AI
+                    {% else %}
+                    Insights AI
+                    {% endif %}
+                </span>
+            </div>
+            <span class="brand-badge">Usage</span>
+
+            <div class="nav-actions">
+                {% if (is_admin or (user_permissions and user_permissions.get('pakwheels', True))) and selected_company != 'lucid' %}
+                <a href="{{ url_for('analysis') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z"/></svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                {% if selected_company == 'lucid' and (is_admin or (user_permissions and user_permissions.get('lucid', False))) %}
+                <a href="{{ url_for('lucid_analytics_route') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3v18h18v-2H5V3H3zm4 14h2V9H7v8zm4 0h2V7h-2v10zm4 0h2v-4h-2v4z"/></svg>
+                    <span>Analytics</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('chatbot_advanced') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                    <span>Chatbot</span>
+                </a>
+
+                {% if (is_admin or (user_permissions and user_permissions.get('whatsapp', False))) and selected_company != 'lucid' %}
+                <a href="{{ url_for('view_whatsapp_chat') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.465 3.516"/></svg>
+                    <span>WhatsApp</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('settings_page') }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                    <span>Settings</span>
+                </a>
+
+                  <a href="{{ url_for('logout') }}" class="nav-cta">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                    </svg>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="analytics-container">
+        <!-- Header -->
+        <div class="analytics-header">
+            <div class="header-content">
+                <h1 class="page-title"><i class="fas fa-chart-line"></i> API Usage Dashboard</h1>
+                <p class="page-subtitle">Monitor token usage and costs across all API requests</p>
+            </div>
+        </div>
+
+        <!-- Migration Section -->
+        <div class="migration-section">
+            <div>
+                <strong>Historical Data</strong>
+                <p>Import RAG token usage from logs (one-time operation)</p>
+            </div>
+            <button class="btn btn-primary" onclick="runMigration()" id="migrateBtn">
+                <i class="fas fa-database"></i> Import Historical Data
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <div class="filter-group">
+                <label>Date Range</label>
+                <select id="daysFilter">
+                    <option value="1">Last 24 Hours</option>
+                    <option value="7">Last 7 Days</option>
+                    <option value="30" selected>Last 30 Days</option>
+                    <option value="90">Last 90 Days</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Operation</label>
+                <select id="operationFilter">
+                    <option value="">All Operations</option>
+                    <option value="LLM text generation">LLM text generation</option>
+                    <option value="Chat Query - RAG">Chat Query - RAG</option>
+                </select>
+            </div>
+            <div class="filter-buttons">
+                <button class="btn btn-primary" onclick="applyFilters()"><i class="fas fa-filter"></i> Filter</button>
+                <button class="btn btn-secondary" onclick="resetFilters()"><i class="fas fa-redo"></i> Reset</button>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <h3>Total Requests</h3>
+                </div>
+                <div class="stat-value" id="totalRequests">-</div>
+                <div class="stat-label">API calls</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <h3>Total Tokens</h3>
+                </div>
+                <div class="stat-value" id="totalTokens">-</div>
+                <div class="stat-label">tokens used</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <h3>Total Cost</h3>
+                </div>
+                <div class="stat-value" id="totalCost">-</div>
+                <div class="stat-label">USD</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <h3>Active Users</h3>
+                </div>
+                <div class="stat-value" id="activeUsers">-</div>
+                <div class="stat-label">users</div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="charts-section">
+            <div class="chart-card large">
+                <div class="chart-header">
+                    <div class="chart-info">
+                        <h3 class="chart-title">Token Usage Trend</h3>
+                        <p class="chart-subtitle">Daily token consumption over time</p>
+                    </div>
+                    <div class="chart-actions">
+                        <button class="chart-action-btn" onclick="downloadChart('tokenTrendChart')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-container"><canvas id="tokenTrendChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="data-section">
+            <div class="section-header">
+                <h2 class="section-title">Request Details</h2>
+                <p class="section-subtitle">Showing detailed token usage for each API request</p>
+            </div>
+            <div id="loadingState" class="loading"><i class="fas fa-spinner"></i><p>Loading usage data...</p></div>
+            <div id="errorState"></div>
+            <div class="data-table-container">
+                <table id="usageTable" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>API Type</th>
+                            <th>Model</th>
+                            <th>Operation</th>
+                            <th>Output Tokens</th>
+                            <th>Total Tokens</th>
+                            <th>Cost (USD)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usageTableBody"></tbody>
+                </table>
+            </div>
+            <div id="emptyState" class="empty-state"><i class="fas fa-inbox"></i><p>No usage data found</p></div>
+            <div class="pagination" id="pagination">
+                <button onclick="previousPage()" id="prevBtn"><i class="fas fa-chevron-left"></i> Previous</button>
+                <span class="page-info">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+                <button onclick="nextPage()" id="nextBtn">Next <i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        const itemsPerPage = 50;
+        let allData = [];
+        let tokenTrendChart = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateLogo();
+            loadUsageData();
+        });
+
+        function updateLogo() {
+            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const logo = document.getElementById('navLogo');
+            if (logo) {
+                const logoFile = theme === 'dark' ? 'light-logo.svg' : 'dark-logo.svg';
+                logo.src = `/static/images/${logoFile}`;
+            }
+        }
+
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+                    updateLogo();
+                    if (allData.length > 0) {
+                        initializeCharts(allData);
+                    }
+                }
+            });
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-theme']
+        });
+
+        async function runMigration() {
+            const btn = document.getElementById('migrateBtn');
+            const originalText = btn.innerHTML;
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner spinner-icon"></i> Importing...';
+                const response = await fetch('/api/usage/migrate-rag-tokens', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    const entriesFound = result.entries_found || 0;
+                    const entriesMigrated = result.entries_migrated || 0;
+                    alert(`✅ Migration Complete!\n\nEntries Found: ${entriesFound}\nEntries Migrated: ${entriesMigrated}\n\n${result.message}`);
+                    btn.innerHTML = '<i class="fas fa-check"></i> Import Complete';
+                    btn.style.background = '#43e97b';
+                    setTimeout(() => { loadUsageData(); }, 1000);
+                } else {
+                    alert(`⚠️ ${result.message || result.error}`);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function loadUsageData() {
+            showLoading(true);
+            try {
+                const days = document.getElementById('daysFilter').value;
+                const operation = document.getElementById('operationFilter').value;
+                
+                const url = new URL('/api/usage/detailed', window.location.origin);
+                url.searchParams.append('days', days);
+                if (operation) {
+                    url.searchParams.append('operation', operation);
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const result = await response.json();
+                if (result.success) {
+                    allData = result.data || [];
+                    
+                    // Calculate stats only for allowed operations
+                    const allowedOperations = ['Chat Query - RAG', 'LLM text generation'];
+                    const filteredForStats = allData.filter(item => {
+                        const operation = (item.operation || '').trim();
+                        return allowedOperations.includes(operation);
+                    });
+                    
+                    const stats = {
+                        request_count: filteredForStats.length,
+                        total_tokens: filteredForStats.reduce((sum, item) => sum + (item.total_tokens || 0), 0),
+                        total_cost: filteredForStats.reduce((sum, item) => sum + (item.cost || 0), 0),
+                        active_users: new Set(filteredForStats.map(item => item.user_id)).size
+                    };
+                    
+                    updateStats(stats);
+                    initializeCharts(filteredForStats);
+                    displayData();
+                    showLoading(false);
+                } else {
+                    showError(result.error || 'Failed to load usage data');
+                    showLoading(false);
+                }
+            } catch (error) {
+                showError('Error loading usage data: ' + error.message);
+                showLoading(false);
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalRequests').textContent = (stats.request_count || 0).toLocaleString();
+            document.getElementById('totalTokens').textContent = (stats.total_tokens || 0).toLocaleString();
+            document.getElementById('totalCost').textContent = '$' + (stats.total_cost || 0).toFixed(4);
+            document.getElementById('activeUsers').textContent = (stats.active_users || 0).toLocaleString();
+        }
+
+        function initializeCharts(data) {
+            if (typeof Chart === 'undefined') return;
+            const tokenTrendCtx = document.getElementById('tokenTrendChart');
+            if (tokenTrendCtx) {
+                const dailyData = aggregateDailyTokens(data);
+                if (tokenTrendChart) tokenTrendChart.destroy();
+                
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const textColor = isDark ? '#f0f0f0' : '#2d333a';
+                const gridColor = isDark ? '#3a3a3a' : '#e8eaed';
+                
+                tokenTrendChart = new Chart(tokenTrendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: dailyData.labels,
+                        datasets: [{
+                            label: 'Total Tokens',
+                            data: dailyData.values,
+                            borderColor: '#ff3333',
+                            backgroundColor: 'rgba(255, 51, 51, 0.2)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#ff3333',
+                            pointBorderColor: 'white',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 7
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { 
+                                display: true, 
+                                labels: { 
+                                    color: textColor, 
+                                    font: { size: 12, weight: '500' } 
+                                } 
+                            } 
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                ticks: { color: textColor, font: { size: 12 } }, 
+                                grid: { color: gridColor } 
+                            },
+                            x: { 
+                                ticks: { color: textColor, font: { size: 12 } }, 
+                                grid: { color: gridColor } 
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function aggregateDailyTokens(data) {
+            const daily = {};
+            data.forEach(item => {
+                const date = new Date(item.timestamp).toLocaleDateString();
+                daily[date] = (daily[date] || 0) + (item.total_tokens || 0);
+            });
+            const sorted = Object.entries(daily).sort((a, b) => new Date(a[0]) - new Date(b[0]));
+            return { labels: sorted.map(([date]) => date), values: sorted.map(([, tokens]) => tokens) };
+        }
+
+        function downloadChart(chartId) {
+            const canvas = document.getElementById(chartId);
+            if (canvas) {
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = `${chartId}-${new Date().toISOString().split('T')[0]}.png`;
+                link.click();
+            }
+        }
+
+        function displayData() {
+            const filteredData = filterData();
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (filteredData.length === 0) {
+                document.getElementById('usageTable').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+                document.getElementById('pagination').style.display = 'none';
+                return;
+            }
+            document.getElementById('usageTable').style.display = 'table';
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('pagination').style.display = 'flex';
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageData = filteredData.slice(start, end);
+            const tbody = document.getElementById('usageTableBody');
+            tbody.innerHTML = '';
+            pageData.forEach(item => {
+                const row = document.createElement('tr');
+                const timestamp = new Date(item.timestamp).toLocaleString();
+                const username = item.user || 'System';
+                const apiType = item.api_type || 'Unknown';
+                const model = item.model_name || 'N/A';
+                
+                // Clean up operation field - remove duplicates and format properly
+                let operation = item.operation || 'N/A';
+                // Remove duplicate patterns like "RAG ENGINERAG Engine"
+                operation = operation.replace(/(\w+)\s+\1/g, '$1');
+                // Capitalize properly
+                operation = operation.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+                
+                const outputTokens = (item.output_tokens || 0).toLocaleString();
+                const totalTokens = (item.total_tokens || 0).toLocaleString();
+                
+                const grokOutputRate = 1.50 / 1_000_000;
+                const calculatedCost = (item.output_tokens || 0) * grokOutputRate;
+                const cost = '$' + calculatedCost.toFixed(8);
+                
+                row.innerHTML = `
+                    <td>${timestamp}</td>
+                    <td><span class="badge">${username}</span></td>
+                    <td><span class="badge badge-api">${apiType.replace('_', ' ').toUpperCase()}</span></td>
+                    <td>${model}</td>
+                    <td>${operation}</td>
+                    <td class="text-right">${outputTokens}</td>
+                    <td class="text-right">${totalTokens}</td>
+                    <td class="text-right">${cost}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('totalPages').textContent = totalPages;
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = currentPage === totalPages;
+        }
+
+        function filterData() {
+            const operationFilter = document.getElementById('operationFilter').value;
+            const allowedOperations = ['Chat Query - RAG', 'LLM text generation'];
+            
+            // Filter data to only show allowed operations
+            let filtered = allData.filter(item => {
+                const operation = (item.operation || '').trim();
+                return allowedOperations.includes(operation);
+            });
+            
+            // If a specific operation filter is selected, apply it
+            if (operationFilter) {
+                filtered = filtered.filter(item => {
+                    const operation = (item.operation || '').trim();
+                    return operation === operationFilter;
+                });
+            }
+            
+            return filtered;
+        }
+
+        function applyFilters() {
+            currentPage = 1;
+            loadUsageData();
+        }
+
+        function resetFilters() {
+            document.getElementById('daysFilter').value = '30';
+            document.getElementById('operationFilter').value = '';
+            currentPage = 1;
+            loadUsageData();
+        }
+
+        function nextPage() {
+            const filteredData = filterData();
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                displayData();
+                window.scrollTo(0, 0);
+            }
+        }
+
+        function previousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                displayData();
+                window.scrollTo(0, 0);
+            }
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingState').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorState');
+            errorDiv.innerHTML = `<div class="error"><i class="fas fa-exclamation-circle"></i><span>${message}</span></div>`;
+            errorDiv.style.display = 'block';
+        }
+
+        setInterval(loadUsageData, 30000);
+    </script>
+</body>
+</html>

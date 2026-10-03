@@ -1,0 +1,125 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DOCKER_IMAGE: obaid38/haval-marketing-tool  # CHANGE THIS
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract short SHA
+        id: sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:${{ steps.sha.outputs.short_sha }}
+            ${{ env.DOCKER_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted  # This runs on production machine
+
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract short SHA
+        id: sha
+        run: |
+          $shortSha = "${{ github.sha }}".Substring(0,7)
+          echo "short_sha=$shortSha" >> $env:GITHUB_OUTPUT
+        shell: powershell
+
+      - name: Pull new image
+        run: docker pull ${{ env.DOCKER_IMAGE }}:${{ steps.sha.outputs.short_sha }}
+        shell: powershell
+
+      - name: Create network if not exists
+        run: |
+          $network = docker network ls --filter name=^haval_net$ --format "{{.Name}}"
+          if (-not $network) {
+            docker network create haval_net
+          }
+        shell: powershell
+
+      - name: Start Redis if not running
+        run: |
+          $redis = docker ps -a --filter name=^haval-redis$ --format "{{.Names}}"
+          if (-not $redis) {
+            docker run -d --name haval-redis --network haval_net --restart unless-stopped -p 6379:6379 redis:latest
+          } else {
+            $running = docker ps --filter name=^haval-redis$ --format "{{.Names}}"
+            if (-not $running) {
+              docker start haval-redis
+            }
+          }
+        shell: powershell
+
+      - name: Stop existing app container
+        run: |
+          $container = docker ps -a --filter name=^haval-marketing-tool$ --format "{{.Names}}"
+          if ($container) {
+            docker stop haval-marketing-tool
+            docker rm haval-marketing-tool
+          }
+        shell: powershell
+
+      - name: Create cache directory
+        run: |
+          if (-not (Test-Path "D:\haval-test-package\cache")) {
+            New-Item -ItemType Directory -Path "D:\haval-test-package\cache"
+          }
+        shell: powershell
+
+      - name: Start new container
+        run: |
+          $MSSQL_PASSWORD = '${{ secrets.DMS_MSSQL_PASSWORD }}'
+          $SMTP_PASSWORD = '${{ secrets.SMTP_PASSWORD }}'
+          docker run -d --name haval-marketing-tool --network haval_net --restart unless-stopped -p 10000:10000 -v D:/haval-test-package/data:/app/data -v D:/haval-test-package/logs:/app/logs -v D:/haval-test-package/uploads:/app/uploads -v D:/haval-test-package/cache:/root/.cache --add-host mssql-server:${{ secrets.MSSQL_HOST_IP }} -e FLASK_ENV=production -e XAI_API_KEY='${{ secrets.XAI_API_KEY }}' -e OPENAI_API_KEY='${{ secrets.OPENAI_API_KEY }}' -e DMS_DB_PROVIDER=mssql -e DMS_MSSQL_SERVER=mssql-server -e DMS_MSSQL_DATABASE='${{ secrets.DMS_MSSQL_DATABASE }}' -e DMS_MSSQL_USERNAME='${{ secrets.DMS_MSSQL_USERNAME }}' -e DMS_MSSQL_PASSWORD="$MSSQL_PASSWORD" -e DMS_MSSQL_PORT=1433 -e DMS_MSSQL_TRUSTED_CONNECTION=false -e REDIS_HOST=haval-redis -e SMTP_HOST='${{ secrets.SMTP_HOST }}' -e SMTP_PORT='${{ secrets.SMTP_PORT }}' -e SMTP_USERNAME='${{ secrets.SMTP_USERNAME }}' -e SMTP_PASSWORD="$SMTP_PASSWORD" -e FROM_EMAIL='${{ secrets.FROM_EMAIL }}' -e FROM_NAME='${{ secrets.FROM_NAME }}' -e DISABLE_PREWARM=false -e DISABLE_AI_INIT=false ${{ env.DOCKER_IMAGE }}:${{ steps.sha.outputs.short_sha }}
+        shell: powershell
+
+      - name: Wait for startup
+        run: Start-Sleep -Seconds 120
+        shell: powershell
+
+      - name: Health check
+        run: |
+          try {
+            Invoke-WebRequest -Uri http://localhost:10000/ -UseBasicParsing -ErrorAction Stop
+          } catch {
+            Write-Host "Health check endpoint not available, checking if container is running..."
+          }
+          docker ps | Select-String haval-marketing-tool
+        shell: powershell
+
+      - name: Cleanup old images
+        run: docker image prune -f
+        shell: powershell

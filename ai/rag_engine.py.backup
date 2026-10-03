@@ -1,0 +1,1629 @@
+# haval_insights/rag_engine.py
+from __future__ import annotations
+
+from typing import List, Dict, Optional, Any
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import json
+
+from ai.vector_store import ChromaVectorStore, RetrievedBlock
+from ai.llm_client import BaseLLMClient
+from ai.enrichment import EnrichmentState
+
+
+class RAGEngine:
+    """
+    Retrieval-Augmented Generation engine specialised for the Haval H6 PakWheels thread.
+
+    - Uses a local ChromaVectorStore for retrieval.
+    - Uses an LLM client (Grok, Gemini, etc.) that implements BaseLLMClient.
+    - Context (forum blocks + instructions) is put into the system prompt;
+      the user message is ONLY the current user question.
+    """
+
+    def __init__(
+        self,
+        pakwheels_store: ChromaVectorStore,
+        whatsapp_store: ChromaVectorStore,
+        llm: BaseLLMClient,
+        k: int = 5,
+        state: Optional[EnrichmentState] = None,
+        max_block_chars: int = 2048,
+    ):
+        # Store both vector stores in a dictionary for easy lookup
+        self.vector_stores = {
+            "pakwheels": pakwheels_store,
+            "whatsapp": whatsapp_store,
+        }
+        self.llm = llm
+        self.k = k
+        self.state = state or EnrichmentState()
+        self.max_block_chars = max_block_chars
+
+    # ------------------------------------------------------------------
+    # Chat-history helper (message struct)
+    # ------------------------------------------------------------------
+    def _messages_with_system(
+        self,
+        system_prompt: str,
+        user_message: str,
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> List[Dict[str, str]]:
+        msgs: List[Dict[str, str]] = []
+        if system_prompt:
+            msgs.append({"role": "system", "content": system_prompt})
+        if history:
+            msgs.extend(history)
+        msgs.append({"role": "user", "content": user_message})
+        return msgs
+
+    # ------------------------------------------------------------------
+    # Broad-question / JSON parsing helpers
+    # ------------------------------------------------------------------
+    def _is_broad_insight_question(self, question: str) -> bool:
+        """
+        Heuristic: detect generic insight questions like
+        'what problems are there', 'what are people saying', etc.
+        These queries ask about general patterns/trends rather than specific details.
+        """
+        q = question.lower()
+        keywords = [
+            # Pattern: "what [adjective] problems/issues/concerns"
+            "what problems",
+            "what issues",
+            "what concerns",
+            "common problems",
+            "common issues",
+            "common complaints",
+            "main problems",
+            "main issues",
+            "typical problems",
+            "typical issues",
+            "major problems",
+            "major issues",
+
+            # Pattern: "what are people/owners saying"
+            "what are people saying",
+            "what are owners saying",
+            "what do owners think",
+            "what do people think",
+            "what do most",
+
+            # Pattern: "overall/general feedback/sentiment"
+            "overall feedback",
+            "general feedback",
+            "overall sentiment",
+            "general sentiment",
+            "in general what",
+
+            # Pattern: "pros and cons"
+            "pros and cons",
+            "advantages and disadvantages",
+            "strengths and weaknesses",
+        ]
+        return any(k in q for k in keywords)
+
+    def _is_statistical_query(self, question: str) -> bool:
+        """
+        Detect if query requires statistical analysis (counting, aggregation).
+        Statistical queries need higher top_k to get accurate counts.
+
+        Examples:
+        - "How many brake issues?"
+        - "Count complaints in 2024"
+        - "Top 10 most common problems"
+        - "Statistics of delivery delays"
+        """
+        q = question.lower()
+        statistical_keywords = [
+            "how many",
+            "count",
+            "number of",
+            "total",
+            "statistics",
+            "stat",
+            "distribution",
+            "breakdown",
+            "top ",  # "top 10", "top issues"
+            "most common",
+            "frequency",
+            "percentage",
+            "ratio",
+            "comparison",  # Often involves counting
+            "vs ",  # Comparison queries
+            "versus",
+        ]
+        return any(k in q for k in statistical_keywords)
+    def _extract_customer_name(self, question: str) -> Optional[str]:
+            """
+            MASTER EXTRACTION LOGIC:
+            - Extracts the REAL customer name from natural language queries.
+            - Handles 'between', 'with', 'from', 'what did X say'.
+            - Handles new keywords: 'summary', 'history', 'logs', 'details'.
+            - Handles reversed orders ('Haval and Luqman' vs 'Luqman and Haval').
+            - Actively ignores company names, platform terms, and stop words.
+            """
+            import re
+            
+            q = question.lower().strip()
+            
+            # =========================================================================
+            # 1. THE "IGNORE LIST" (Terms that are NEVER the customer)
+            # =========================================================================
+            ignored_terms = {
+                # Brand / Company
+                'haval', 'gwm', 'sazgar', 'tank', 'ora', 'poer', 'he', 'phev', 'jolion', 'ice',
+                'pakwheels', 'pakistan', 'karachi', 'lahore', 'islamabad',
+                # Platform / Channel
+                'whatsapp', 'whats app', 'wa', 'bot', 'ai', 'system', 'database', 'app',
+                # Departments / Roles
+                'after sales', 'sales', 'service', 'support', 'agent', 'admin', 'manager', 
+                'representative', 'customer service', 'dealer', 'dealership', 'company',
+                # Generic People words
+                'customer', 'user', 'person', 'someone', 'anyone', 'everyone', 'nobody'
+            }
+
+            # =========================================================================
+            # 2. KEYWORDS (Synonyms for "Conversation")
+            # =========================================================================
+            # Added: 'summary', 'summaries', 'history', 'log', 'details'
+            chat_words = r'(?:conversation|chat|messages?|talk|history|logs?|details|transcripts?|summary|summaries)'
+
+            # =========================================================================
+            # 3. PATTERNS (The "Dragnet") - BULLETPROOF EDITION
+            # =========================================================================
+            patterns = [
+                # PRIORITY 0: NESTED CHAT WORDS (New! Handles complex queries)
+                # "Show me the summary of chat with Luqman"
+                # "Give me history of conversation with Ahmed"
+                rf'{chat_words}\s+(?:of|with)\s+{chat_words}\s+(?:of|with|from|about)\s+([a-zA-Z][a-zA-Z0-9\s]+)',
+                # "Summary of Luqman's messages"
+                rf'{chat_words}\s+(?:of|from)\s+([a-zA-Z][a-zA-Z0-9\s]+?)\'s\s+{chat_words}',
+
+                # PRIORITY 1: DUAL ENTITY ("Between Luqman and Haval")
+                # We capture both sides so we can filter out the company later.
+                r'(?:between|with)\s+([a-zA-Z0-9\s]+?)\s+(?:and|&)\s+([a-zA-Z0-9\s]+)',
+                rf'([a-zA-Z0-9\s]+?)\s+(?:and|&)\s+([a-zA-Z0-9\s]+?)\s+{chat_words}',
+
+                # PRIORITY 2: POSSESSIVE ("Luqman's chat", "Ahmed's messages")
+                rf'([a-zA-Z][a-zA-Z0-9\s]+?)\'s\s+{chat_words}',  # With chat word
+                rf'([a-zA-Z][a-zA-Z0-9\s]{1,20}?)\'s(?:\s|$)',  # Just possessive
+
+                # PRIORITY 3: SPECIFIC ACTIONS ("What did Luqman say")
+                r'what\s+did\s+([a-zA-Z0-9\s]+?)\s+(?:say|tell|ask|write)',
+                r'did\s+([a-zA-Z][a-zA-Z0-9\s]+?)\s+(?:say|tell|ask|write|mention)',
+                r'(?:can|could|will)\s+you\s+(?:show|tell)\s+(?:me\s+)?(?:what\s+)?([a-zA-Z][a-zA-Z0-9\s]+?)\s+(?:said|told|wrote)',
+
+                # PRIORITY 4: GENERIC ("Chat with Luqman", "Summary of Luqman")
+                # Flexible regex allows text like "exact summary", "full history", etc.
+                rf'{chat_words}\s+(?:of|with|from|about|for)\s+([a-zA-Z][a-zA-Z0-9\s]+)',
+
+                # PRIORITY 5: COMMANDS ("Show me Luqman", "Find Ahmed", "Get John's chat")
+                # Complex commands with nested words
+                rf'(?:show|give|get|pull|find|search|fetch|retrieve)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?(?:full\s+)?(?:complete\s+)?{chat_words}?\s+(?:of\s+)?{chat_words}?\s+(?:of|with|from|about|for)\s+([a-zA-Z][a-zA-Z0-9\s]+)',
+                # Simple commands
+                rf'(?:show|give|get|pull|find|search|fetch|retrieve)\s+(?:me\s+)?(?:the\s+)?([a-zA-Z][a-zA-Z0-9\s]+?)(?:\s+{chat_words}|\s*$)',
+
+                # PRIORITY 6: "Tell me about", "Talk about"
+                r'(?:tell|talk)\s+(?:me\s+)?about\s+([a-zA-Z][a-zA-Z0-9\s]+)',
+                r'(?:information|info|data|details)\s+(?:on|about|for)\s+([a-zA-Z][a-zA-Z0-9\s]+)',
+
+                # PRIORITY 7: "I want to see", "I need"
+                rf'(?:i\s+)?(?:want|need|would like)\s+(?:to\s+)?(?:see|know|view|check)\s+(?:what\s+)?([a-zA-Z][a-zA-Z0-9\s]+?)(?:\s+{chat_words}|\s+said|\s*$)',
+
+                # PRIORITY 8: DIRECT NAME + CHAT WORD
+                rf'([a-zA-Z][a-zA-Z0-9\s]{1,15}?)\s+{chat_words}',
+            ]
+
+            candidates = []
+
+            # --- EXECUTE EXTRACTION ---
+            for pattern in patterns:
+                match = re.search(pattern, q)
+                if match:
+                    # Add all captured groups as potential candidates
+                    candidates.extend([g.strip() for g in match.groups() if g])
+                    
+                    # If we found a "Dual" match (2 entities), stop looking.
+                    # This prevents simpler patterns from messing up a perfect dual match.
+                    if len(match.groups()) > 1:
+                        break
+
+            # =========================================================================
+            # 4. FILTERING & CLEANUP (The "Brain")
+            # =========================================================================
+            final_name = None
+
+            for candidate in candidates:
+                clean_cand = candidate.lower()
+                
+                # A. Safety Split (Fixes greedy regex errors like "Luqman and Haval")
+                # If the regex accidentally grabbed "Luqman and Haval", we cut it here.
+                for splitter in [' and ', ' & ', ' with ', ' about ', ' for ']:
+                    if splitter in clean_cand:
+                        clean_cand = clean_cand.split(splitter)[0]
+                        candidate = candidate.split(splitter)[0] # Keep original casing
+
+                # B. Check Ignore List (Is it a company?)
+                candidate_words = clean_cand.split()
+                is_company = False
+                
+                # Check 1: Does the full phrase contain an ignored term?
+                if any(term in clean_cand for term in ignored_terms):
+                    is_company = True
+                
+                # Check 2: Does any individual word match an ignored term?
+                if not is_company:
+                    for word in candidate_words:
+                        if word in ignored_terms:
+                            is_company = True
+                            break
+
+                if is_company:
+                    continue # Skip this candidate, it's not the customer
+
+                # C. Remove Stop Words (Common pronouns)
+                if clean_cand in {'me', 'us', 'him', 'her', 'them', 'the', 'all', 'any'}:
+                    continue
+
+                # D. Length Check (Ignore 1 letter names)
+                if len(clean_cand) < 2:
+                    continue
+
+                # If we survive all checks, we found the customer!
+                final_name = candidate
+                break
+
+            if not final_name:
+                return None
+
+            # Return Properly Capitalized Name (e.g., "luqman farooq" -> "Luqman Farooq")
+            return ' '.join(word.capitalize() for word in final_name.split())
+
+    def _get_whatsapp_messages_by_customer(self, customer_name: str) -> List[Dict[str, Any]]:
+        """
+        Retrieve WhatsApp messages for a specific customer from the database.
+        Used when user asks for a specific customer's conversation.
+        """
+        import sqlite3
+        import os
+        
+        # Get database path
+        db_path = os.path.join("data", "posts.db")
+        if not os.path.exists(db_path):
+            print(f"[RAG] Database not found at {db_path}")
+            return []
+        
+        try:
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            
+            # Search for customer name (case-insensitive, partial match)
+            cur.execute("""
+                SELECT customer_name, country_code, contact_number, message_type, 
+                       message, timestamp, imported_at
+                FROM whatsapp_messages 
+                WHERE customer_name LIKE ? OR customer_name LIKE ?
+                ORDER BY timestamp DESC
+            """, (f"%{customer_name}%", f"%{customer_name.lower()}%"))
+            
+            rows = cur.fetchall()
+            conn.close()
+            
+            messages = []
+            for row in rows:
+                messages.append({
+                    'customer_name': row[0],
+                    'country_code': row[1],
+                    'contact_number': row[2],
+                    'message_type': row[3],
+                    'message': row[4],
+                    'timestamp': row[5],
+                    'imported_at': row[6]
+                })
+            
+            print(f"[RAG] Retrieved {len(messages)} messages for customer '{customer_name}'")
+            return messages
+            
+        except Exception as e:
+            print(f"[RAG] Error retrieving WhatsApp messages for '{customer_name}': {e}")
+            return []
+
+    def _handle_whatsapp_customer_query(self, question: str, customer_name: str, history: Optional[List[Dict[str, str]]], thinking_mode: bool) -> str:
+        """
+        Handle WhatsApp queries for a specific customer name.
+        Retrieves messages directly from database and formats response.
+        """
+        print(f"[RAG] Handling WhatsApp customer query for: '{customer_name}'")
+        print(f"[RAG] Original query: '{question}'")
+        print(f"[RAG] Thinking mode: {thinking_mode}")
+        
+        # Get messages for the specific customer
+        messages = self._get_whatsapp_messages_by_customer(customer_name)
+        print(f"[RAG] Retrieved {len(messages)} messages for customer '{customer_name}'")
+        
+        if not messages:
+            return f"I couldn't find any WhatsApp messages for '{customer_name}'. Please check the spelling or try a different name.\n\nTip: Try searching for partial names or check the customer list in the WhatsApp view."
+        
+        # Format messages for the LLM
+        context_parts = []
+        for idx, msg in enumerate(messages, 1):
+            msg_type = msg.get('message_type', 'unknown')
+            emoji = "❗" if msg_type == "complaint" else "❓"
+            contact = f"+{msg.get('country_code', '')}{msg.get('contact_number', '')}"
+            
+            context_parts.append(
+                f"[WA-{idx}] {emoji} **{msg.get('customer_name', 'Unknown')}** ({msg_type})\n"
+                f"   Message: {msg.get('message', 'N/A')}\n"
+                f"   Contact: {contact}\n"
+                f"   Time: {msg.get('timestamp', 'N/A')}\n"
+            )
+        
+        context = "\n".join(context_parts)
+        print(f"[RAG] Context length: {len(context)} characters")
+        print(f"[RAG] Context preview: {context[:200]}...")
+        
+        # Build system prompt for customer-specific query
+        system_prompt = f"""You are an AI assistant analyzing WhatsApp messages for a specific customer: {customer_name}.
+
+**Customer: {customer_name}**
+**Total Messages: {len(messages)}**
+
+**Messages Context:**
+{context}
+
+**Instructions:**
+- Focus ONLY on messages from {customer_name}
+- Provide a clear summary of their conversation history
+- Identify any complaints, queries, or issues they raised
+- Include timestamps and message types in your analysis
+- When referencing messages, cite them as [WA-1], [WA-2], etc.
+- Be empathetic and professional in your response
+- **IMPORTANT**: You MUST include ALL {len(messages)} messages in your references section
+- **MANDATORY**: Show every single message with its citation, timestamp, and content
+
+**Answer Format:**
+Structure your response with:
+1. Customer overview (name, contact, message count)
+2. Conversation summary
+3. Key issues or queries raised
+4. Timeline of interactions (chronological order)
+5. **MANDATORY References section**: List ALL {len(messages)} messages with full details
+
+**References Section Format (MANDATORY):**
+You MUST include ALL messages in this exact format:
+
+---
+### 📋 References
+
+**[WA-1]** 👤 {customer_name} | 📞 Contact | 🏷️ Message Type | 🕐 Timestamp  
+💬 *"Full message content here"*
+
+**[WA-2]** 👤 {customer_name} | 📞 Contact | 🏷️ Message Type | 🕐 Timestamp  
+💬 *"Full message content here"*
+
+[Continue for ALL {len(messages)} messages]
+
+---
+
+**CRITICAL**: 
+- Do not summarize or skip any messages. Show every single one with its full content.
+- Do NOT generate charts or visualizations for individual customer queries
+- Focus on providing a comprehensive text-based analysis and complete message listing
+
+Answer the user's question about {customer_name}'s WhatsApp conversation."""
+
+        # Build messages for LLM
+        messages_for_llm = [{"role": "system", "content": system_prompt}]
+        if history:
+            messages_for_llm.extend(history)
+        messages_for_llm.append({"role": "user", "content": question})
+
+        # Use appropriate temperature based on thinking mode
+        llm_temperature = 1.0 if thinking_mode else 0.4
+        print(f"  > LLM Temperature: {llm_temperature} ({'comprehensive' if thinking_mode else 'focused'})")
+
+        # Generate response (increased tokens for comprehensive customer analysis)
+        resp = self.llm.generate(
+            messages_for_llm,
+            top_k=1,
+            max_tokens=4096,  # Increased to accommodate all messages
+            temperature=llm_temperature,
+        )
+        
+        answer_text = (resp.content or "").strip()
+        
+        if not answer_text:
+            return f"I found {len(messages)} messages for {customer_name} but couldn't generate a summary. Please try rephrasing your question."
+        
+        return answer_text
+
+    def _extract_json_block(self, raw: str) -> Any:
+        """
+        Try to load JSON even if the model wraps it with extra text.
+        """
+        raw = raw.strip()
+        try:
+            return json.loads(raw)
+        except Exception:
+            # Try to locate the first '{' and last '}' and parse that slice
+            start = raw.find("{")
+            end = raw.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                snippet = raw[start : end + 1]
+                try:
+                    return json.loads(snippet)
+                except Exception:
+                    return None
+            return None
+
+    def _parse_iso_or_none(self, s: Optional[str]) -> Optional[datetime]:
+        if not s:
+            return None
+        if not isinstance(s, str):
+            return None
+        s = s.strip()
+        if not s:
+            return None
+        try:
+            dt = datetime.fromisoformat(s)
+            # Make timezone-aware if naive (use Pakistan timezone)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=ZoneInfo("Asia/Karachi"))
+            return dt
+        except Exception:
+            return None
+
+    def _format_range(self, start_dt: Optional[datetime], end_dt: Optional[datetime]) -> str:
+        if start_dt and end_dt:
+            if start_dt.date() == end_dt.date():
+                return start_dt.date().isoformat()
+            return f"{start_dt.date().isoformat()} to {end_dt.date().isoformat()}"
+        if start_dt:
+            return f"from {start_dt.date().isoformat()} onwards"
+        if end_dt:
+            return f"up to {end_dt.date().isoformat()}"
+        return "all time"
+
+    # ------------------------------------------------------------------
+    # Query domain classification (out-of-domain detection)
+    # ------------------------------------------------------------------
+    def _classify_query_domain(self, question: str) -> str:
+        """
+        Classify user query into: 'in_domain', 'out_of_domain', or 'small_talk'.
+
+        Uses a lightweight LLM call (~60 tokens) to determine if the query
+        is relevant to Haval vehicles before doing expensive retrieval.
+
+        Returns:
+            'in_domain' - Query about Haval vehicles, proceed with RAG
+            'out_of_domain' - Unrelated query, refuse immediately
+            'small_talk' - Greeting/thanks, respond politely
+        """
+        classification_prompt = f"""You are a query classifier for a Haval H6 vehicle chatbot.
+
+Classify this user query into ONE category:
+
+CATEGORIES:
+1. "in_domain" - Questions about:
+   • Haval vehicles (H6, Jolion, PHEV, HEV variants)
+   • Customer complaints, issues, problems
+   • Service, delivery, warranty, dealership
+   • Features, specifications, performance
+   • Comparisons with other vehicles
+   • Owner experiences, reviews
+   • Meta-questions about Haval discussions (e.g., "What do people ask about Haval?", "What specs are commonly asked?")
+   • Questions mentioning platforms (WhatsApp, PakWheels, forums) in context of Haval queries
+   • Questions about "queries", "questions people ask", "what users ask" - assume these are about Haval
+   • WhatsApp customer queries (e.g., "show chat of [Name]", "conversation of [Name]", "messages from [Name]")
+   • Any request for specific customer conversations or messages
+   • DATA METADATA QUESTIONS - Questions about the data itself:
+     - "What's the data span of PakWheels/WhatsApp?"
+     - "How many messages/threads/conversations in PakWheels/WhatsApp?"
+     - "What dates does PakWheels/WhatsApp data cover?"
+     - "How much data do we have?"
+     - "What's the time range of the data?"
+     - Any question asking about data volume, time spans, or dataset statistics
+
+IMPORTANT:
+- If the query mentions WhatsApp/PakWheels/forums AND asks about queries/questions/complaints, classify as in_domain (assume it's about Haval queries).
+- If the query asks for specific customer conversations/chats/messages (even without mentioning Haval), classify as in_domain (assume it's WhatsApp customer data).
+- If the query asks about the DATA ITSELF (time spans, counts, statistics), classify as in_domain (metadata questions are valid).
+
+2. "out_of_domain" - Questions about:
+   • Essays, creative writing, stories, poems
+   • Movies, music, sports, entertainment
+   • Food, recipes, cooking
+   • General knowledge (geography, history, science)
+   • Coding, programming, technology
+   • Homework, assignments
+   • Any topic unrelated to Haval vehicles
+
+3. "small_talk" - Casual conversation:
+   • Greetings: hello, hi, hey, salam
+   • Thanks: thank you, thanks
+   • How are you, what's up
+   • OK, okay, alright
+
+USER QUERY: "{question}"
+
+Respond with ONLY ONE WORD (lowercase): in_domain, out_of_domain, or small_talk"""
+
+        messages = [{"role": "user", "content": classification_prompt}]
+
+        try:
+            response = self.llm.generate(
+                messages,
+                max_tokens=10,        # Only need 1 word
+                temperature=0.0       # Deterministic classification
+            )
+
+            classification = response.content.strip().lower()
+
+            # Validate response is one of the expected categories
+            valid_categories = ['in_domain', 'out_of_domain', 'small_talk']
+            if classification in valid_categories:
+                return classification
+            else:
+                # If LLM gives unexpected response, default to in_domain (safe fallback)
+                return 'in_domain'
+
+        except Exception:
+            # If classification fails, assume in_domain to avoid blocking legitimate queries
+            return 'in_domain'
+
+    # ------------------------------------------------------------------
+    # Query optimisation (sub-queries + time windows + filters)
+    # ------------------------------------------------------------------
+    def _has_enriched_metadata(self, vector_store: ChromaVectorStore) -> bool:
+        """
+        Check if any ConversationBlock in the vector store actually has
+        meaningful variant/tags metadata. If not, we should NOT ask the
+        LLM to produce filters, because they'd just zero out retrieval.
+        """
+        for b in vector_store.blocks_by_id.values():
+            if getattr(b, "aggregated_tags", None):
+                return True
+            v = getattr(b, "dominant_variant", None)
+            if v and v != "Unknown":
+                return True
+        return False
+
+    def _optimize_queries(self, question: str, vector_store: ChromaVectorStore) -> List[Dict[str, Any]]:
+        """
+        Use the LLM (Grok/Gemini) to:
+        1) Split the user question into 1–5 focused sub-queries, if needed.
+        2) For each sub-query, create a short, semantic-search-friendly query.
+        3) Optionally attach:
+            - a time window [start_datetime, end_datetime] in ISO 8601
+            - variant_filter    -> list of variant names
+            - sentiment_filter  -> list of sentiments
+            - tag_filter        -> list of tags
+
+        When enriched metadata exists (variants/tags on blocks), filters are
+        encouraged. When not, we ignore filters and use plain text + time only.
+
+        Return shape (internal Python objects):
+
+            [
+              {
+                "query": "haval h6 phev battery concerns in karachi heat",
+                "start_dt": datetime | None,
+                "end_dt": datetime | None,
+                "variant_filter": ["PHEV"] or None,
+                "sentiment_filter": ["negative"] or None,
+                "tags_filter": ["problem_report", "fuel_economy"] or None,
+              },
+              ...
+            ]
+        """
+        now_iso = datetime.now().isoformat()
+        broad = self._is_broad_insight_question(question)
+        has_filters = self._has_enriched_metadata(vector_store)
+
+        # Use enrichment state only as a hint for the LLM
+        variants_list = sorted(list(self.state.variants)) if self.state else []
+        tags_list = sorted(list(self.state.tags)) if self.state else []
+
+        base_intro = (
+            "You are a query optimisation assistant for a semantic search engine.\n"
+            "The search index is a Pakistani forum thread about the Haval H6 (HEV/PHEV/other variants).\n\n"
+            "The system stores posts as conversation blocks with timestamps and, when available,\n"
+            "metadata such as variant, sentiment, and tags.\n"
+        )
+
+        if broad:
+            task_description = (
+                "TASK:\n"
+                "1. Interpret the user question as a request for overall insights.\n"
+                "   Generate 3–5 sub-queries, each focusing on DIFFERENT aspects, e.g.:\n"
+                "   - transmission / DCT / gearbox problems\n"
+                "   - fuel economy / running cost\n"
+                "   - build quality / noise / comfort issues\n"
+                "   - after-sales / dealership experiences\n"
+                "   - availability / booking / delivery\n"
+                "   Create only those that are clearly relevant.\n"
+            )
+        else:
+            task_description = (
+                "TASK:\n"
+                "1. Decide whether the user question should be split into multiple\n"
+                "   focused sub-questions (maximum 4). Split only if it clearly asks\n"
+                "   about multiple distinct aspects (e.g., reliability, fuel economy,\n"
+                "   and features in one sentence).\n"
+            )
+
+        # Time window instructions
+        time_part = (
+            "2. For each sub-question, produce a short, information-dense query\n"
+            "   optimised for semantic vector search:\n"
+            "   - Focus on key entities, nouns, and technical phrases.\n"
+            "   - Drop politeness and filler words.\n"
+            "   - Keep ~3–15 words per query.\n"
+            "3. If the user question mentions time expressions (e.g. 'yesterday',\n"
+            "   'last week', 'in May 2024'), interpret them relative to the\n"
+            "   CURRENT_TIME shown below and derive an appropriate time window\n"
+            "   [start_datetime, end_datetime] in ISO 8601 format (local time).\n"
+            "   - **CRITICAL**: Apply this SAME time window to ALL sub-queries.\n"
+            "     Do not create sub-queries with different or missing time constraints.\n"
+            "   - If no specific time constraint is implied, set both to null for ALL sub-queries.\n"
+        )
+
+        # Filter instructions only if we actually have enriched metadata
+        if has_filters:
+            filter_part = (
+                "4. Optionally propose filters for each sub-query when it makes sense:\n"
+                "   - 'variant_filter': list of variant names if the question clearly\n"
+                "      targets certain variants (e.g. PHEV, HEV, Jolion). Known examples:\n"
+                f"      {variants_list or '[no pre-known variants; infer from context]'}\n"
+                "   - 'sentiment_filter': a subset of ['positive', 'negative', 'mixed', 'neutral']\n"
+                "      if the question is clearly about complaints, praise, etc.\n"
+                "   - 'tag_filter': list of tag names capturing key themes, for example:\n"
+                f"      {tags_list or '[no pre-known tags; infer compact snake_case tags]'}\n"
+                "   Only use filters when the user question strongly implies them. Otherwise\n"
+                "   set them to null or empty.\n"
+            )
+
+            json_schema = (
+                "5. Return STRICT JSON with this schema and nothing else:\n"
+                '   { "sub_queries": [\n'
+                '       {\n'
+                '         "query": "text",\n'
+                '         "start_datetime": "YYYY-MM-DDTHH:MM:SS" or null,\n'
+                '         "end_datetime": "YYYY-MM-DDTHH:MM:SS" or null,\n'
+                '         "variant_filter": ["..."] or null,\n'
+                '         "sentiment_filter": ["positive", ...] or null,\n'
+                '         "tag_filter": ["tag1", "tag2", ...] or null\n'
+                '       }\n'
+                "     ] }\n"
+            )
+
+            sys_prompt = base_intro + task_description + time_part + filter_part + json_schema
+
+            user_prompt = f"""CURRENT_TIME: {now_iso}
+
+User question:
+\"\"\"{question}\"\"\"
+
+Now output ONLY valid JSON in the format:
+{{
+  "sub_queries": [
+    {{
+      "query": "query 1 here",
+      "start_datetime": "YYYY-MM-DDTHH:MM:SS" or null,
+      "end_datetime": "YYYY-MM-DDTHH:MM:SS" or null,
+      "variant_filter": ["PHEV"] or null,
+      "sentiment_filter": ["negative"] or null,
+      "tag_filter": ["problem_report", "fuel_economy"] or null
+    }}
+  ]
+}}"""
+        else:
+            # No metadata to filter on – keep it simple with only time windows.
+            json_schema = (
+                "4. Return STRICT JSON with this schema and nothing else:\n"
+                '   { "sub_queries": [\n'
+                '       {\n'
+                '         "query": "text",\n'
+                '         "start_datetime": "YYYY-MM-DDTHH:MM:SS" or null,\n'
+                '         "end_datetime": "YYYY-MM-DDTHH:MM:SS" or null\n'
+                '       }\n'
+                "     ] }\n"
+            )
+
+            sys_prompt = base_intro + task_description + time_part + json_schema
+
+            user_prompt = f"""CURRENT_TIME: {now_iso}
+
+User question:
+\"\"\"{question}\"\"\"
+
+Now output ONLY valid JSON in the format:
+{{
+  "sub_queries": [
+    {{
+      "query": "query 1 here",
+      "start_datetime": "YYYY-MM-DDTHH:MM:SS" or null,
+      "end_datetime": "YYYY-MM-DDTHH:MM:SS" or null
+    }}
+  ]
+}}"""
+
+        messages = [
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        try:
+            resp = self.llm.generate(messages, max_tokens=1024, temperature=0.0)
+            raw = (resp.content or "").strip()
+        except Exception:
+            # Fallback – no optimisation
+            return [
+                {
+                    "query": question,
+                    "start_dt": None,
+                    "end_dt": None,
+                    "variant_filter": None,
+                    "sentiment_filter": None,
+                    "tags_filter": None,
+                }
+            ]
+
+        data = self._extract_json_block(raw)
+        if not isinstance(data, dict):
+            return [
+                {
+                    "query": question,
+                    "start_dt": None,
+                    "end_dt": None,
+                    "variant_filter": None,
+                    "sentiment_filter": None,
+                    "tags_filter": None,
+                }
+            ]
+
+        sub_queries = data.get("sub_queries")
+        if not isinstance(sub_queries, list):
+            return [
+                {
+                    "query": question,
+                    "start_dt": None,
+                    "end_dt": None,
+                    "variant_filter": None,
+                    "sentiment_filter": None,
+                    "tags_filter": None,
+                }
+            ]
+
+        cleaned: List[Dict[str, Any]] = []
+        for item in sub_queries:
+            if not isinstance(item, dict):
+                continue
+
+            q = item.get("query")
+            if not isinstance(q, str):
+                continue
+            q = q.strip()
+            if not q:
+                continue
+
+            # Time parsing
+            start_raw = item.get("start_datetime")
+            end_raw = item.get("end_datetime")
+            start_dt = self._parse_iso_or_none(start_raw)
+            end_dt = self._parse_iso_or_none(end_raw)
+
+            # Filters (only meaningful if has_filters == True)
+            variant_filter: Optional[List[str]] = None
+            sentiment_filter: Optional[List[str]] = None
+            tags_filter: Optional[List[str]] = None
+
+            if has_filters:
+                v = item.get("variant_filter")
+                if isinstance(v, list):
+                    v_clean = [vv.strip() for vv in v if isinstance(vv, str) and vv.strip()]
+                    variant_filter = v_clean or None
+
+                s = item.get("sentiment_filter")
+                if isinstance(s, list):
+                    s_clean = [
+                        ss.strip().lower()
+                        for ss in s
+                        if isinstance(ss, str) and ss.strip()
+                    ]
+                    # Only keep valid sentiments if specified
+                    allowed_sent = {"positive", "negative", "mixed", "neutral"}
+                    s_clean = [ss for ss in s_clean if ss in allowed_sent]
+                    sentiment_filter = s_clean or None
+
+                t = item.get("tag_filter")
+                if isinstance(t, list):
+                    t_clean = [tt.strip() for tt in t if isinstance(tt, str) and tt.strip()]
+                    tags_filter = t_clean or None
+
+            cleaned.append(
+                {
+                    "query": q,
+                    "start_dt": start_dt,
+                    "end_dt": end_dt,
+                    "variant_filter": variant_filter,
+                    "sentiment_filter": sentiment_filter,
+                    "tags_filter": tags_filter,
+                }
+            )
+
+        if not cleaned:
+            return [
+                {
+                    "query": question,
+                    "start_dt": None,
+                    "end_dt": None,
+                    "variant_filter": None,
+                    "sentiment_filter": None,
+                    "tags_filter": None,
+                }
+            ]
+
+        return cleaned
+
+    # ------------------------------------------------------------------
+    # Retrieval + citations helpers
+    # ------------------------------------------------------------------
+    def _build_context(self, retrieved: List[RetrievedBlock]) -> str:
+        """
+        Build a textual context block from retrieved conversation blocks.
+
+        Uses:
+        - summary (if available from enrichment) as the main content
+        - plus variant/sentiment/tags metadata when present
+        - falls back to full flattened_text if no summary
+        """
+        ctx_parts: List[str] = []
+        for rb in retrieved:
+            b = rb.block
+            header = (
+                f"BLOCK_ID={b.block_id} | "
+                f"root_author={b.root_post.username} | "
+                f"date={b.root_post.created_at.date()}"
+            )
+
+            meta_bits: List[str] = []
+            v = getattr(b, "dominant_variant", None)
+            if v:
+                meta_bits.append(f"variant={v}")
+            s = getattr(b, "dominant_sentiment", None)
+            if s:
+                meta_bits.append(f"sentiment={s}")
+            tags = getattr(b, "aggregated_tags", None) or []
+            if tags:
+                meta_bits.append("tags=" + ", ".join(tags[:6]))
+
+            meta_line = " | ".join(meta_bits) if meta_bits else ""
+
+            # Prefer summary if enrichment has created one
+            summary = getattr(b, "summary", None)
+            if summary:
+                content = summary.strip()
+            else:
+                snippet = b.flattened_text
+                if len(snippet) > self.max_block_chars:
+                    snippet = snippet[: self.max_block_chars] + "..."
+                content = snippet.strip()
+
+            block_text = header
+            if meta_line:
+                block_text += "\n" + meta_line
+            block_text += "\n" + content
+
+            ctx_parts.append(block_text)
+
+        return "\n\n---\n\n".join(ctx_parts)
+
+    def _build_citations(
+        self,
+        retrieved: List[RetrievedBlock],
+        max_refs: int = 5,
+        similarity_threshold: float = 0.6,
+        citation_start_dt: Optional[datetime] = None,
+        citation_end_dt: Optional[datetime] = None
+    ) -> str:
+        """
+        Build a human-readable references section from retrieved blocks.
+        Uses consistent formatting that matches the HTML template parsing patterns.
+
+        Parameters:
+        - retrieved: List of retrieved blocks
+        - max_refs: Maximum number of references to include (default 5, max 10 in thinking mode)
+        - similarity_threshold: Only include blocks with similarity >= this value (default 0.6)
+                               In thinking mode: 0.7 for strict relevance
+        - citation_start_dt: Start of time window (for finding relevant message date)
+        - citation_end_dt: End of time window (for finding relevant message date)
+        """
+        if not retrieved:
+            return ""
+
+        # Filter by similarity threshold for strict relevance
+        filtered_retrieved = [rb for rb in retrieved if rb.score >= similarity_threshold]
+
+        if not filtered_retrieved:
+            return ""  # No sufficiently relevant blocks found
+
+        lines: List[str] = []
+        lines.append("\n\n---")
+        lines.append("### 📋 References")
+        lines.append("")
+
+        # Include only up to max_refs references with strict similarity
+        for i, rb in enumerate(filtered_retrieved[:max_refs], 1):
+            b = rb.block
+
+            # Find the most relevant message date
+            # For multi-message blocks (forum threads/WhatsApp), show the date of relevant messages
+            relevant_date = b.root_post.created_at.date()
+
+            if hasattr(b, 'replies') and b.replies:
+                # Case 1: Time window specified - find messages within that window
+                if citation_start_dt and citation_end_dt:
+                    all_messages = [b.root_post] + b.replies
+                    messages_in_window = []
+
+                    for msg in all_messages:
+                        msg_dt = msg.created_at
+                        # Normalize timezone
+                        if msg_dt.tzinfo is None:
+                            msg_dt = msg_dt.replace(tzinfo=ZoneInfo("Asia/Karachi"))
+                        elif msg_dt.tzinfo != citation_start_dt.tzinfo:
+                            msg_dt = msg_dt.astimezone(ZoneInfo("Asia/Karachi"))
+
+                        # Check if message is within the time window
+                        if citation_start_dt <= msg_dt <= citation_end_dt:
+                            messages_in_window.append(msg)
+
+                    # If we found messages in the window, use the first one's date
+                    if messages_in_window:
+                        relevant_date = messages_in_window[0].created_at.date()
+
+                # Case 2: No time window - show latest message date from the thread
+                # This handles queries like "latest message" for old threads with recent replies
+                else:
+                    all_messages = [b.root_post] + b.replies
+                    latest_message = max(all_messages, key=lambda m: m.created_at)
+                    relevant_date = latest_message.created_at.date()
+
+            date = relevant_date
+            username = b.root_post.username
+            source_url = b.source_url
+
+            # Prefer summary; otherwise pick first non-header content line
+            if getattr(b, "summary", None):
+                base_text = b.summary
+                body_lines = [ln for ln in base_text.splitlines() if ln.strip()]
+            else:
+                base_text = b.flattened_text
+                body_lines = [ln for ln in base_text.splitlines() if ln.strip()]
+                # Strip simple header lines like "[user @ date]"
+                body_lines = [
+                    ln
+                    for ln in body_lines
+                    if not (ln.startswith("[") and "@" in ln and "]" in ln)
+                ]
+
+            snippet = body_lines[0] if body_lines else base_text
+            snippet = snippet.strip()
+            if len(snippet) > 180:
+                snippet = snippet[:180] + "..."
+
+            # Detect source from metadata (set during indexing)
+            source_label = "PakWheels Forum"  # Default
+            enhanced_url = source_url
+            phone_info = ""
+
+            if rb.metadata and "source" in rb.metadata:
+                source_value = rb.metadata["source"]
+                source_label = "WhatsApp" if source_value == "Whatsapp" else "PakWheels Forum"
+                print(f"[DEBUG] Citation {i}: source_value={source_value}, source_label={source_label}")
+            else:
+                print(f"[DEBUG] Citation {i}: No source in metadata. metadata keys: {list(rb.metadata.keys()) if rb.metadata else 'None'}")
+
+            if "WhatsApp" in source_label:
+                # Try metadata first, then block attribute
+                phone_number = None
+                if rb.metadata and "phone_number" in rb.metadata and rb.metadata["phone_number"]:
+                    phone_number = rb.metadata["phone_number"]
+                elif hasattr(b, 'phone_number') and b.phone_number:
+                    phone_number = b.phone_number
+                
+                # Only show phone number if it's valid and not empty
+                if phone_number and str(phone_number).strip() and str(phone_number).strip() != "N/A":
+                    phone_info = f" | 📞 {phone_number}"
+                    print(f"[DEBUG] WhatsApp citation {i}: phone_number={phone_number} (from {'metadata' if rb.metadata and 'phone_number' in rb.metadata else 'block'})")
+                else:
+                    phone_info = ""  # Don't show phone info if not available
+                    print(f"[DEBUG] WhatsApp citation {i}: NO valid phone_number found. Skipping phone display.")
+                    
+            elif "PakWheels" in source_label:
+                # Try to get post_number first (preferred), then fall back to post_id
+                post_number = None
+                if rb.metadata and "post_number" in rb.metadata:
+                    post_number = rb.metadata["post_number"]
+                elif hasattr(b.root_post, 'post_number') and b.root_post.post_number:
+                    post_number = b.root_post.post_number
+                elif rb.metadata and "post_id" in rb.metadata:
+                    # Fallback to post_id if post_number not available
+                    post_number = rb.metadata["post_id"]
+                elif hasattr(b.root_post, 'post_id') and b.root_post.post_id:
+                    # Fallback to post_id if post_number not available
+                    post_number = b.root_post.post_id
+                
+                if post_number:
+                    enhanced_url = f"https://www.pakwheels.com/forums/t/haval-h6-dedicated-discussion-owner-fan-club-thread/2198325/{post_number}"
+                    print(f"[DEBUG] PakWheels citation {i}: post_number={post_number}, enhanced_url={enhanced_url} (from {'metadata' if rb.metadata and ('post_number' in rb.metadata or 'post_id' in rb.metadata) else 'block'})")
+                else:
+                    print(f"[DEBUG] PakWheels citation {i}: NO post_number found. Block root_post.post_number={getattr(b.root_post, 'post_number', 'MISSING')}, root_post.post_id={getattr(b.root_post, 'post_id', 'MISSING')}, metadata post_number={rb.metadata.get('post_number', 'MISSING') if rb.metadata else 'NO_METADATA'}, metadata post_id={rb.metadata.get('post_id', 'MISSING') if rb.metadata else 'NO_METADATA'}")
+
+            # Format that matches HTML template parsing patterns
+            lines.append(f"**[{i}]** 👤 {username} | 📅 {date} | 🔗 {source_label}{phone_info}")
+            lines.append(f"💬 *\"{snippet}\"*")
+            lines.append(f"🔗 [View Source]({enhanced_url})")
+            lines.append("")
+
+        lines.append("---")
+        return "\n".join(lines)
+
+    def _fallback_answer(
+        self,
+        question: str,
+        retrieved: List[RetrievedBlock],
+    ) -> str:
+        """
+        If the LLM returns nothing (safety / token limits), generate a simple,
+        grounded answer directly from retrieved blocks plus citations.
+        """
+        if not retrieved:
+            return (
+                "I couldn't retrieve enough forum context to answer this "
+                "question from the Haval H6 PakWheels thread."
+            )
+
+        lines: List[str] = [
+            "The language model didn't return a full answer (likely due to "
+            "length or safety limits), but from the PakWheels H6 forum context "
+            "we can see the following points:"
+        ]
+
+        for rb in retrieved[:3]:
+            b = rb.block
+
+            if getattr(b, "summary", None):
+                snippet = b.summary.strip()
+            else:
+                body_lines = [
+                    ln
+                    for ln in b.flattened_text.splitlines()
+                    if ln.strip() and not ln.startswith("[BLOCK_ID=")
+                ]
+                # Strip simple "[user @ date]" header-style lines
+                body_lines = [
+                    ln
+                    for ln in body_lines
+                    if not (ln.startswith("[") and "@" in ln and "]" in ln)
+                ]
+
+                snippet = body_lines[0] if body_lines else b.flattened_text[:200]
+                snippet = snippet.strip()
+                if len(snippet) > 200:
+                    snippet = snippet[:200] + "..."
+
+            lines.append(f"- {snippet}")
+
+        # Add references
+        lines.append(self._build_citations(retrieved))
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # System Prompt Builders (Thinking vs Non-Thinking Mode)
+    # ------------------------------------------------------------------
+    def _build_non_thinking_prompt(
+        self,
+        context_text: str,
+        retrieval_notes_text: str,
+        is_broad: bool,
+        is_whatsapp: bool = False
+    ) -> str:
+        """
+        Build system prompt for NON-THINKING mode:
+        - Clean, professional statistics only
+        - NO emojis, NO citations, NO suggestions
+        - Basic intro and conclusion paragraphs
+        - Focus on data and numbers
+        """
+        # Dynamic source label based on data source
+        source_name = "Haval WhatsApp customer interactions" if is_whatsapp else "PakWheels forum data"
+        context_label = "WhatsApp conversations with Haval after sales" if is_whatsapp else "PakWheels Haval H6 forum posts"
+
+        base = f"""
+You are a Haval H6 Data Analyst for the Haval Pakistan marketing team.
+
+GOAL:
+- Provide clean, professional statistical analysis from {source_name}
+- Use ONLY the context provided below
+- Focus on numbers, counts, and factual data
+- Stay grounded in the data; do not hallucinate
+
+SCOPE:
+- Questions about Haval H6 customer experiences: Analyze from context
+- Questions about the data itself (PakWheels/WhatsApp time spans, counts, statistics): Answer directly
+- Unrelated topics: Politely decline and redirect to Haval topics
+
+OUTPUT FORMAT (NO emojis, NO suggestions):
+- Start with a brief introductory paragraph stating what the data shows
+- Present statistics and findings in a clear, professional manner
+- Use tables or simple lists for data (NO chart code blocks)
+- End with a brief concluding paragraph summarizing the key insight
+
+RETRIEVAL NOTES:
+{retrieval_notes_text}
+
+CONTEXT:
+{context_label}:
+
+\"\"\"{context_text}\"\"\"
+
+CRITICAL:
+- NO emojis (📊, 🔍, 💡, etc.)
+- NO citations or references
+- NO suggestions or action items
+- NO chart code blocks
+- Just clean statistics with intro/outro paragraphs
+"""
+        return base.strip()
+
+    def _build_thinking_prompt(
+        self,
+        context_text: str,
+        retrieval_notes_text: str,
+        is_broad: bool,
+        is_whatsapp: bool = False
+    ) -> str:
+        """
+        Build system prompt for THINKING mode:
+        - Detailed structure with multiple sections
+        - Visual formatting for engagement
+        """
+        # Dynamic source label based on data source
+        source_name = "Haval WhatsApp customer interactions" if is_whatsapp else "PakWheels Haval H6 forum discussions"
+        context_label = "Haval WhatsApp conversations" if is_whatsapp else "PakWheels Haval H6 forum posts"
+
+        base_header = f"""
+You are the **Haval H6 Insight Copilot** for the Haval Pakistan marketing team.
+
+GOAL:
+- Help the marketing team understand real owners' and customers' experiences
+  with the Haval H6 (HEV / PHEV / related variants) in Pakistan.
+- Use ONLY the context provided below and the prior chat turns.
+- Stay grounded in the data; do not hallucinate specific technical facts
+  that are not mentioned.
+
+SMALL-TALK & OUT-OF-DOMAIN HANDLING (CRITICAL):
+- If the user input is general conversation (greetings, "hello", "thanks", etc.):
+  • Reply naturally in one short line
+  • DO NOT use the context or generate citations
+
+- You are ONLY for analyzing {source_name}.
+- HOWEVER, questions ABOUT the data itself are VALID and should be answered:
+  • "What's the data span of PakWheels forum?" → Answer using the data date timestamps
+  • "What's the data span of WhatsApp conversations?" → Answer using the data date timestamps
+  • "How many messages/threads/conversations in PakWheels?" → Count and answer
+  • "How many messages/threads/conversations in WhatsApp?" → Count and answer
+  • "What dates does PakWheels/WhatsApp data cover?" → Answer from the data
+  • "How much PakWheels/WhatsApp data do we have?" → Provide statistics about the dataset
+  • These are metadata questions - answer them directly from the available data
+
+- True out-of-domain questions (politics, general knowledge, unrelated topics):
+  • Politely redirect: "I'm here to help with Haval H6 insights from {source_name}.
+    Please ask about Haval-related topics or questions about the data itself!"
+
+**CHART & TABLE VISUALIZATION (MANDATORY for statistics/counts/analysis):**
+When user asks about statistics, counts, top N, comparisons, or analysis, you MUST include visualizations.
+
+**Chart Format (EXACT FORMAT REQUIRED):**
+```chart
+type: bar
+title: Top H6 Owner Issues
+data: {{"Engine Problems": 15, "DCT Issues": 12, "AC Problems": 8}}
+```
+
+**MANDATORY Answer Structure:**
+
+## 📊 Analysis Summary
+Brief overview paragraph addressing the specific question.
+
+## 🔍 Key Findings
+• **Finding 1**: Detailed explanation with usernames, dates, quotes
+• **Finding 2**: More details with specific examples
+• **Finding 3**: Additional insights
+
+[CHARTS AND TABLES GO HERE]
+
+## 💡 Recommendations
+Provide **4-7 actionable recommendations** for the marketing team based on the findings:
+**Action Item 1**: Specific recommendation with rationale
+**Action Item 2**: Another recommendation with rationale
+**Action Item 3**: Additional suggestion with rationale
+**Action Item 4**: Additional suggestion with rationale
+**Action Item 5**: [If applicable] Fifth recommendation
+
+---
+### 💡 Suggested follow-ups:
+Provide **3 specific follow-up questions** the user might ask:
+💡 Tell me more about [specific topic from the analysis]
+💡 What are the main [related concern based on findings]?
+💡 Show me [relevant follow-up question based on data]
+---
+
+RETRIEVAL NOTES:
+{retrieval_notes_text}
+
+CONTEXT:
+{context_label}:
+
+\"\"\"{context_text}\"\"\"
+"""
+        return base_header.strip()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def answer(
+        self,
+        question: str,
+        history: Optional[List[Dict[str, str]]] = None,
+        thinking_mode: bool = False,
+        source: Optional[str] = None
+    ) -> str:
+        """
+        Main entry point:
+        - Optimise the question into sub-queries (with optional time windows + filters).
+        - Retrieve context per sub-query from Chroma.
+        - Aggregate & dedupe retrieved blocks.
+        - Build system prompt with retrieval notes.
+        - Call the LLM, and attach references at the end.
+
+        Parameters:
+        - question: User's query
+        - history: Chat history for context
+        - thinking_mode: If True, return full analysis with charts/citations/suggestions.
+                        If False, return clean statistics ONLY (no emojis, no citations).
+        """
+        # DEBUG: Log thinking mode and source in RAG engine
+        print(f"\n{'='*60}")
+        print(f"RAG ENGINE DEBUG:")
+        print(f"  Question: {question[:50]}...")
+        print(f"  Thinking Mode: {thinking_mode}")
+        print(f"  Source Filter: {source}")
+        print(f"{'='*60}\n")
+
+        # Select the appropriate vector store based on source
+        vector_store = self.vector_stores.get(source, self.vector_stores["pakwheels"])
+        print(f"[RAG] Selected vector store: {source or 'pakwheels'}")
+
+        # WhatsApp name filtering: Check if user is asking for a specific customer
+        customer_name_filter = None
+        if source == "whatsapp":
+            customer_name_filter = self._extract_customer_name(question)
+            if customer_name_filter:
+                print(f"[RAG] ✅ WhatsApp name filter detected: '{customer_name_filter}'")
+            else:
+                print(f"[RAG] ❌ No specific customer name detected in query: '{question[:50]}...'")
+
+        # 0) Pre-classify query domain to avoid wasting tokens on out-of-domain queries
+        classification = self._classify_query_domain(question)
+        print(f"[RAG] Query classification: '{classification}' for query: '{question[:50]}...'")
+
+        # Handle small-talk immediately (no retrieval needed)
+        if classification == 'small_talk':
+            return "Hello! How can I help you with Haval H6 forum insights today?"
+
+        # Handle out-of-domain immediately (no retrieval needed)
+        if classification == 'out_of_domain':
+            source_label = "WhatsApp customer interactions" if source == "whatsapp" else "PakWheels forum"
+            return (
+                f"I'm here to help with Haval H6 insights from {source_label}. "
+                "I can analyze owner experiences, issues, and discussions about Haval vehicles. "
+                "Please ask about Haval-related topics!"
+            )
+
+        # If we reach here, query is in_domain - proceed with normal RAG flow
+        
+        # Special handling for WhatsApp name-specific queries
+        if source == "whatsapp" and customer_name_filter:
+            print(f"[RAG] 🎯 Routing to customer-specific handler for: '{customer_name_filter}'")
+            return self._handle_whatsapp_customer_query(question, customer_name_filter, history, thinking_mode)
+        elif source == "whatsapp":
+            print(f"[RAG] 📊 Using general WhatsApp RAG (no specific customer detected)")
+        
+        # 1) Optimise into sub-queries + time windows + filters
+        optimised = self._optimize_queries(question, vector_store)
+
+        all_retrieved: Dict[str, RetrievedBlock] = {}
+        no_hits_msgs: List[str] = []
+
+        # Dynamic top_k based on thinking_mode, query type, and time window
+        # User requirements:
+        # - Thinking ON + Statistical: 500
+        # - Thinking ON + Contextual: 20
+        # - Thinking OFF + Statistical: Dynamic (based on time window, max info)
+        # - Thinking OFF + Contextual: 5
+
+        is_broad = self._is_broad_insight_question(question)
+        is_statistical = self._is_statistical_query(question)
+
+        if thinking_mode:
+            # THINKING MODE: Higher top_k for detailed analysis
+            if is_statistical:
+                per_query_k = 500  # Get ALL data for accurate statistics
+            else:
+                per_query_k = 20   # Get diverse examples for context
+        else:
+            # NON-THINKING MODE: Focused retrieval
+            if is_statistical:
+                # Dynamic top_k based on time window size
+                # Adjust retrieval count based on temporal scope for maximum statistical accuracy
+                if 'last week' in question.lower() or 'yesterday' in question.lower():
+                    per_query_k = 100  # Short time window
+                elif 'last month' in question.lower() or 'this month' in question.lower():
+                    per_query_k = 200  # Medium time window
+                elif 'last year' in question.lower() or 'in 20' in question.lower():
+                    per_query_k = 500  # Long time window, need all data
+                else:
+                    per_query_k = 300  # Default for statistical without time constraint
+            else:
+                per_query_k = 5    # Contextual queries need fewer examples
+
+        # 2) Retrieve per optimised sub-query
+        for item in optimised:
+            q_text = (item.get("query") or "").strip()
+            if not q_text:
+                continue
+
+            start_dt: Optional[datetime] = item.get("start_dt")
+            end_dt: Optional[datetime] = item.get("end_dt")
+            variant_filter = item.get("variant_filter")
+            sentiment_filter = item.get("sentiment_filter")
+            tags_filter = item.get("tags_filter")
+
+            retrieved = vector_store.query(
+                q_text,
+                top_k=per_query_k,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                variants=variant_filter,
+                sentiments=sentiment_filter,
+                tags=tags_filter,
+            )
+
+            # DEBUG: Log retrieval results
+            print(f"[RAG] Sub-query '{q_text[:50]}...' -> Retrieved {len(retrieved)} blocks (filters: variants={variant_filter}, tags={tags_filter})")
+
+            # If we explicitly had a time window and/or filters and got no hits,
+            # surface that to the LLM so it doesn't fabricate.
+            had_window = bool(start_dt or end_dt)
+            had_filters = bool(variant_filter or sentiment_filter or tags_filter)
+
+            if not retrieved and (had_window or had_filters):
+                rng = self._format_range(start_dt, end_dt)
+                filter_bits: List[str] = []
+                if variant_filter:
+                    filter_bits.append(f"variants={variant_filter}")
+                if sentiment_filter:
+                    filter_bits.append(f"sentiments={sentiment_filter}")
+                if tags_filter:
+                    filter_bits.append(f"tags={tags_filter}")
+                filter_text = "; ".join(filter_bits) if filter_bits else "no extra filters"
+
+                no_hits_msgs.append(
+                    f"For sub-query '{q_text}' in the time window {rng} with {filter_text}, "
+                    "no matching forum posts were found. Do not invent specific issues "
+                    "for that combination."
+                )
+                continue
+
+            for rb in retrieved:
+                bid = rb.block.block_id
+                if bid not in all_retrieved or rb.score > all_retrieved[bid].score:
+                    all_retrieved[bid] = rb
+
+        retrieved_list = sorted(all_retrieved.values(), key=lambda r: r.score, reverse=True)
+
+        if not retrieved_list:
+            if no_hits_msgs:
+                # Only filtered sub-queries, and all came back empty
+                return (
+                    "I couldn't find any forum posts in the requested time period(s) "
+                    "or with the requested filters for this question.\n\n"
+                    + "\n".join(f"- {m}" for m in no_hits_msgs)
+                )
+            return (
+                "I don't have enough forum data to answer this from the Haval H6 "
+                "PakWheels thread."
+            )
+
+        # 3) Check similarity strength to warn about weak context
+        max_score = max(rb.score for rb in retrieved_list)
+        low_similarity_flag = max_score < 0.55  # simple heuristic
+
+        context_text = self._build_context(retrieved_list)
+
+        # 4) Build retrieval notes section for the system prompt
+        retrieval_notes_lines: List[str] = []
+
+        # Only include "no hits" messages if we have SOME results (partial success scenario)
+        # If we have zero results, those messages are already returned early at line 636-643
+        if no_hits_msgs and retrieved_list:
+            retrieval_notes_lines.append(
+                "Note: Some sub-queries didn't find matches, but the context below contains "
+                "related discussions that may help answer the question."
+            )
+
+        if low_similarity_flag:
+            retrieval_notes_lines.append(
+                "The retrieved blocks have only weak semantic similarity to the "
+                "current question. If they do not seem clearly relevant, say that "
+                "the forum does not directly cover this topic instead of inventing details."
+            )
+
+        if retrieval_notes_lines:
+            retrieval_notes_text = "\n- " + "\n- ".join(retrieval_notes_lines)
+        else:
+            retrieval_notes_text = "None."
+
+        # 5) Detect source from retrieved blocks for prompt customization
+        is_whatsapp_data = (source and source.lower() == "whatsapp")
+        source_label = "WhatsApp customer interactions" if is_whatsapp_data else "PakWheels forum data"
+        print(f"  > Data source for prompts: {source_label}")
+
+        # 6) System prompt: Use appropriate prompt based on thinking_mode
+        # Thinking mode: Full analysis with emojis, charts, citations, suggestions
+        # Non-thinking mode: Clean statistics only, no emojis, no citations
+        is_broad = self._is_broad_insight_question(question)
+
+        if thinking_mode:
+            print(f"  > Using THINKING PROMPT (full analysis with emojis/charts/citations)")
+            system_prompt = self._build_thinking_prompt(context_text, retrieval_notes_text, is_broad, is_whatsapp_data)
+        else:
+            print(f"  > Using NON-THINKING PROMPT (clean stats only, no emojis)")
+            system_prompt = self._build_non_thinking_prompt(context_text, retrieval_notes_text, is_broad, is_whatsapp_data)
+
+        # 6) Build messages and call the LLM. User message is ONLY the question.
+        messages = self._messages_with_system(system_prompt, question, history)
+
+        # Dynamic temperature and max_tokens based on thinking mode
+        # Thinking mode: 1.0 temp (creative, comprehensive analysis), 3500 tokens (detailed)
+        # Non-thinking mode: 0.4 temp (balanced, focused), 2048 tokens (concise)
+        llm_temperature = 1.0 if thinking_mode else 0.4
+        llm_max_tokens = 3500 if thinking_mode else 2048
+        print(f"  > LLM Temperature: {llm_temperature} ({'comprehensive' if thinking_mode else 'focused'})")
+        print(f"  > LLM Max Tokens: {llm_max_tokens}")
+
+        resp = self.llm.generate(
+            messages,
+            max_tokens=llm_max_tokens,
+            temperature=llm_temperature,
+        )
+        answer_text = (resp.content or "").strip()
+
+        if not answer_text:
+            answer_text = self._fallback_answer(question, retrieved_list)
+
+        # 7) Append references (citations) at the very end
+        # ONLY if thinking_mode is enabled and not a refusal response
+        # In non-thinking mode: Return clean statistics without citations/suggestions
+        refusal_phrases = [
+            "I'm here to help with Haval H6",
+            "Please ask about Haval-related topics",
+            "Hello! How can I help you"
+        ]
+
+        is_refusal = any(phrase in answer_text for phrase in refusal_phrases)
+
+        # Only append citations and references if thinking mode is ON
+        if thinking_mode and not is_refusal:
+            print(f"  > Building citations (thinking mode ON, not refusal)")
+            print(f"     Retrieved blocks: {len(retrieved_list)}")
+
+            # SAFETY NET: Filter citations by time window (Fix for citation date mismatch bug)
+            # Extract time constraints from optimised queries
+            time_constraints = [(item.get("start_dt"), item.get("end_dt")) for item in optimised]
+
+            # If ANY sub-query had time constraints, apply them to citations
+            start_dts = [s for s, e in time_constraints if s]
+            end_dts = [e for s, e in time_constraints if e]
+
+            citation_start_dt = min(start_dts) if start_dts else None
+            citation_end_dt = max(end_dts) if end_dts else None
+
+            # DEBUG: Log extracted time constraints
+            print(f"     [DEBUG] Extracted time window: {citation_start_dt} to {citation_end_dt}")
+            if citation_start_dt:
+                print(f"     [DEBUG] citation_start_dt: {citation_start_dt.isoformat()}")
+            if citation_end_dt:
+                print(f"     [DEBUG] citation_end_dt: {citation_end_dt.isoformat()}")
+
+            # Filter retrieved_list by time window
+            if citation_start_dt or citation_end_dt:
+                time_filtered_blocks = []
+                for rb in retrieved_list:
+                    b_start = getattr(rb.block, "start_datetime", None)
+                    b_end = getattr(rb.block, "end_datetime", None)
+
+                    # Normalize timezones for comparison (convert to Pakistan timezone)
+                    if b_start and b_start.tzinfo is None:
+                        b_start = b_start.replace(tzinfo=ZoneInfo("Asia/Karachi"))
+                    elif b_start and b_start.tzinfo != citation_start_dt.tzinfo:
+                        b_start = b_start.astimezone(ZoneInfo("Asia/Karachi"))
+
+                    if b_end and b_end.tzinfo is None:
+                        b_end = b_end.replace(tzinfo=ZoneInfo("Asia/Karachi"))
+                    elif b_end and b_end.tzinfo != citation_start_dt.tzinfo:
+                        b_end = b_end.astimezone(ZoneInfo("Asia/Karachi"))
+
+                    # DEBUG: Log each block's dates
+                    block_id = rb.block.block_id
+                    print(f"     [DEBUG] Block {block_id}: start={b_start}, end={b_end}")
+
+                    # Skip blocks outside time window
+                    if citation_end_dt and b_start and b_start > citation_end_dt:
+                        print(f"     [DEBUG] ❌ Skipping {block_id}: starts AFTER window ends")
+                        continue
+                    if citation_start_dt and b_end and b_end < citation_start_dt:
+                        print(f"     [DEBUG] ❌ Skipping {block_id}: ends BEFORE window starts")
+                        continue
+
+                    print(f"     [DEBUG] ✅ Keeping {block_id}")
+                    time_filtered_blocks.append(rb)
+
+                print(f"     Time filtering: {len(retrieved_list)} → {len(time_filtered_blocks)} blocks")
+                citation_blocks = time_filtered_blocks
+            else:
+                print(f"     No time constraints, using all {len(retrieved_list)} blocks")
+                citation_blocks = retrieved_list
+
+            # When user explicitly enables thinking mode, they want comprehensive analysis
+            # Use permissive threshold (0.4) to ensure citations appear for all query types
+            citation_threshold = 0.4
+            print(f"     Using similarity threshold: 0.4 (thinking mode - comprehensive analysis)")
+
+            refs = self._build_citations(
+                citation_blocks,
+                max_refs=10,
+                similarity_threshold=citation_threshold,
+                citation_start_dt=citation_start_dt,
+                citation_end_dt=citation_end_dt
+            )
+
+            # Fallback: If no citations pass threshold, show top 5 anyway (user enabled thinking mode)
+            if not refs and citation_blocks:
+                print(f"     No citations with threshold 0.4, showing top 5 anyway (thinking mode)")
+                print(f"     Highest similarity score: {max([rb.score for rb in citation_blocks]):.3f}")
+                refs = self._build_citations(
+                    citation_blocks,
+                    max_refs=5,
+                    similarity_threshold=0.0,
+                    citation_start_dt=citation_start_dt,
+                    citation_end_dt=citation_end_dt
+                )
+
+            if refs:
+                print(f"     Citations generated: YES ({len(refs)} chars)")
+                return answer_text.rstrip() + refs
+            else:
+                print(f"     Citations generated: NO (no retrieved blocks)")
+                print(f"     Highest similarity score: {max([rb.score for rb in citation_blocks]) if citation_blocks else 0:.3f}")
+        else:
+            if not thinking_mode:
+                print(f"  > Skipping citations (thinking mode OFF)")
+            elif is_refusal:
+                print(f"  > Skipping citations (refusal response)")
+
+        return answer_text
